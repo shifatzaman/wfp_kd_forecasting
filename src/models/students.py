@@ -60,17 +60,26 @@ class SimpleKANLayer(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (B, in_dim)
-        # piecewise-linear interpolation per dimension
-        x_clamped = x.clamp(-1.0, 1.0)
-        # indices of right knot
-        idx = torch.bucketize(x_clamped, self.knots)  # (B,in_dim), in [0..grid]
-        idx = idx.clamp(1, self.grid_size-1)
-        x0 = self.knots[idx-1]
-        x1 = self.knots[idx]
-        v0 = self.values[:, :].T[idx-1]  # (B,in_dim)
-        v1 = self.values[:, :].T[idx]    # (B,in_dim)
-        t = (x_clamped - x0) / (x1 - x0 + 1e-8)
-        y = v0 + t * (v1 - v0)
+        x = x.clamp(-1.0, 1.0)
+        B, D = x.shape
+        knots = self.knots  # (G,)
+        G = knots.numel()
+
+        # idx in [1..G-1]
+        idx = torch.searchsorted(knots, x).clamp(1, G - 1)  # (B,D)
+
+        x0 = knots[idx - 1]
+        x1 = knots[idx]
+
+        # values: (in_dim, G) -> (B, in_dim, G)
+        vals = self.values.unsqueeze(0).expand(B, -1, -1)
+
+        v0 = torch.gather(vals, 2, (idx - 1).unsqueeze(-1)).squeeze(-1)  # (B,D)
+        v1 = torch.gather(vals, 2, idx.unsqueeze(-1)).squeeze(-1)        # (B,D)
+
+        t = (x - x0) / (x1 - x0 + 1e-8)
+        y = v0 + t * (v1 - v0)  # (B,D)
+
         return self.mix(y)
 
 class KANStudent(ForecastModel):

@@ -66,6 +66,13 @@ def train_single_model(
     teacher_ensemble: Optional[callable] = None,
     teacher_feat_fn: Optional[callable] = None,
 ) -> FitResult:
+
+# Guard: if no batches, skip cleanly
+    if len(loaders["train"]) == 0 or len(loaders["val"]) == 0:
+        import pandas as pd
+        return FitResult(best_val_mae=float("inf"), history=pd.DataFrame([{
+            "epoch": 0, "train_loss": float("nan"), "val_mae": float("inf")
+        }]))
     train_cfg = cfg["train"]
     dist = cfg["distill"]
     opt = torch.optim.AdamW(model.parameters(), lr=float(train_cfg["lr"]), weight_decay=float(train_cfg["weight_decay"]))
