@@ -1,0 +1,116 @@
+seed: 1337
+
+data:
+  url: "https://raw.githubusercontent.com/shifatzaman/datasets/refs/heads/main/wfp_food_prices_bgd_updated.csv"
+  country: "Bangladesh"
+  currency: "BDT"
+  market: "Dhaka"
+  n_commodities: 5
+  date_col: "date"
+  commodity_col: "commodity"
+  market_col: "market"
+  price_col: "price"
+  unit_col: "unit"
+  freq: "W"          # resample frequency (W = weekly). Options: D/W/M
+  agg: "median"      # when resampling. Options: mean/median
+
+task:
+  input_len: 52      # history length (in resampled steps)
+  horizon: 4         # forecast steps
+  stride: 1
+  scale: "standard"  # standard|minmax|none
+
+split:
+  train: 0.7
+  val: 0.15
+  test: 0.15
+  time_based: true   # keep chronological order
+
+teachers:
+  # Any subset can be used as a teacher ensemble (see experiments.grid)
+  common:
+    hidden: 64
+    dropout: 0.1
+  models:
+    dlinear:
+      enabled: true
+      decomposition_kernel: 25
+    patchtst:
+      enabled: true
+      patch_len: 8
+      d_model: 64
+      nhead: 4
+      num_layers: 2
+      ff: 128
+    nbeats:
+      enabled: true
+      stacks: 2
+      blocks_per_stack: 2
+      hidden: 128
+
+students:
+  common:
+    hidden: 64
+    dropout: 0.1
+  models:
+    mlp:
+      enabled: true
+      layers: [128, 64]
+    gru:
+      enabled: true
+      num_layers: 2
+    kan:
+      enabled: true
+      grid_size: 16
+
+distill:
+  enabled: true
+  mode: "offline"     # offline only in this repo
+  ensemble:
+    weighting: "val_mae_softmax"  # uniform|val_mae_softmax
+    temperature: 1.0
+  losses:
+    hard:
+      type: "mae"        # mae or mse
+      weight: 0.5
+    kd_pred:
+      enabled: true
+      type: "mse"        # mse on predictions
+      weight: 0.5
+    kd_feat:
+      enabled: false
+      type: "mse"
+      weight: 0.1
+      projector: "mlp"   # mlp|linear
+      proj_dim: 64
+    kd_contrastive:
+      enabled: false
+      temperature: 0.2
+      weight: 0.05
+
+train:
+  device: "auto"         # auto|cpu|cuda
+  epochs: 30
+  batch_size: 64
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  clip_grad: 1.0
+  early_stopping:
+    enabled: true
+    patience: 7
+    metric: "val_mae"
+  num_workers: 0
+
+experiments:
+  # If grid.enabled is true, we try all combinations and log each run.
+  grid:
+    enabled: true
+    teacher_sets:
+      - ["dlinear"]
+      - ["patchtst"]
+      - ["nbeats"]
+      - ["dlinear", "patchtst"]
+      - ["dlinear", "nbeats"]
+      - ["patchtst", "nbeats"]
+      - ["dlinear", "patchtst", "nbeats"]
+    students: ["mlp", "gru", "kan"]
