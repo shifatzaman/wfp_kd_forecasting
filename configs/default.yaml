@@ -81,7 +81,7 @@ distill:
     kd_feat:
       enabled: true
       type: "mse"
-      weight: 0.1
+      weight: 0.05
       projector: "linear"   # mlp|linear
       proj_dim: 64
     kd_contrastive:
