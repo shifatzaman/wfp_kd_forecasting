@@ -79,10 +79,10 @@ distill:
       type: "mse"        # mse on predictions
       weight: 0.5
     kd_feat:
-      enabled: false
+      enabled: true
       type: "mse"
       weight: 0.1
-      projector: "mlp"   # mlp|linear
+      projector: "linear"   # mlp|linear
       proj_dim: 64
     kd_contrastive:
       enabled: false
