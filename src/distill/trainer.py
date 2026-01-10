@@ -148,10 +148,7 @@ def train_single_model(
                     yhat_t_price = teacher_ensemble(x)
 
                 if cfg["task"].get("target", "price") == "residual":
-                    if x.dim() == 3:
-                        x_last = x[:, -1, 0].unsqueeze(1).detach()  # (B,1) price
-                    else:
-                        x_last = x[:, -1].unsqueeze(1).detach()     # (B,1)
+                    x_last = x[:, -1:].detach()
                     yhat_t = yhat_t_price - x_last
                 else:
                     yhat_t = yhat_t_price
@@ -217,8 +214,7 @@ def train_single_model(
                 break
 
     # restore best
-    if "best_state" in locals():
-        model.load_state_dict(best_state)
+    model.load_state_dict(best_state)
     if proj is not None and best_proj is not None:
         proj.load_state_dict(best_proj)
 
@@ -236,19 +232,15 @@ def evaluate_model(model, loader, device, scaler=None, target="price"):
             yhat = model(x)
 
             if target == "residual":
-                if x.dim() == 3:
-                    x_last = x[:, -1, 0].unsqueeze(1).detach()  # (B,1) price
-                else:
-                    x_last = x[:, -1].unsqueeze(1).detach()
-
+                x_last = x[:, -1:].detach()   # (B,1)
                 y_price = y + x_last
                 yhat_price = yhat + x_last
             else:
                 y_price = y
                 yhat_price = yhat
 
-            y_np = y_price.cpu().numpy()
-            yhat_np = yhat_price.cpu().numpy()
+            y_np = y.cpu().numpy()
+            yhat_np = yhat.cpu().numpy()
 
             # 🔑 Inverse scaling → actual BDT/kg
             if scaler is not None:
