@@ -66,6 +66,8 @@ students:
 
 distill:
   enabled: true
+  uncertainty_weighted: true
+  uncertainty_alpha: 1.0 
   mode: "offline"     # offline only in this repo
   ensemble:
     weighting: "val_mae_softmax"  # uniform|val_mae_softmax
@@ -79,7 +81,7 @@ distill:
       type: "mse"        # mse on predictions
       weight: 0.5
     kd_feat:
-      enabled: true
+      enabled: false
       type: "mse"
       weight: 0.05
       projector: "linear"   # mlp|linear
