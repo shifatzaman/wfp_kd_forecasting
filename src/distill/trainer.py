@@ -201,45 +201,79 @@ def train_single_model(
     return FitResult(best_val_mae=best, history=hist)
 
 def evaluate_model(model, loader, device, scaler=None, target="price"):
+    """
+    Evaluate model on real price scale (BDT/kg).
+
+    Returns:
+        dict with mae, rmse, mape, nmae
+    """
     model.eval()
-    maes, mses = [], []
+
+    all_y = []
+    all_yhat = []
 
     with torch.no_grad():
         for x, y in loader:
             x = x.to(device)
             y = y.to(device)
+
             yhat = model(x)
 
+            # --- reconstruct price if residual forecasting ---
             if target == "residual":
-                x_last = x[:, -1:].detach()   # (B,1)
+                if x.dim() == 3:
+                    # x: (B, L, C) → price channel only
+                    x_last = x[:, -1, 0].unsqueeze(1)
+                else:
+                    x_last = x[:, -1].unsqueeze(1)
+
                 y_price = y + x_last
                 yhat_price = yhat + x_last
             else:
                 y_price = y
                 yhat_price = yhat
 
-            y_np = y.cpu().numpy()
-            yhat_np = yhat.cpu().numpy()
+            y_np = y_price.cpu().numpy().reshape(-1, 1)
+            yhat_np = yhat_price.cpu().numpy().reshape(-1, 1)
 
-            # 🔑 Inverse scaling → actual BDT/kg
+            # --- inverse scaling to real BDT/kg ---
             if scaler is not None:
-                y_np = scaler.inverse_transform(
-                    y_np.reshape(-1, 1)
-                ).reshape(y_np.shape)
+                y_np = scaler.inverse_transform(y_np)
+                yhat_np = scaler.inverse_transform(yhat_np)
 
-                yhat_np = scaler.inverse_transform(
-                    yhat_np.reshape(-1, 1)
-                ).reshape(yhat_np.shape)
+            all_y.append(y_np.squeeze())
+            all_yhat.append(yhat_np.squeeze())
 
-            maes.append(abs(yhat_np - y_np).mean())
-            mses.append(((yhat_np - y_np) ** 2).mean())
+    if len(all_y) == 0:
+        return {
+            "mae": float("nan"),
+            "rmse": float("nan"),
+            "mape": float("nan"),
+            "nmae": float("nan"),
+        }
 
-    if len(maes) == 0:
-        return {"mae": float("nan"), "mse": float("nan")}
+    y_all = np.concatenate(all_y)
+    yhat_all = np.concatenate(all_yhat)
+
+    # --- metrics ---
+    abs_err = np.abs(yhat_all - y_all)
+    sq_err = (yhat_all - y_all) ** 2
+
+    mae = float(np.mean(abs_err))
+    rmse = float(np.sqrt(np.mean(sq_err)))
+
+    # safe MAPE (prices are > 0, but be defensive)
+    eps = 1e-8
+    mape = float(np.mean(abs_err / (np.abs(y_all) + eps)) * 100.0)
+
+    # normalized MAE (scale-free)
+    nmae = float(mae / (np.mean(np.abs(y_all)) + eps))
 
     return {
-        "mae": float(np.mean(maes)),
-        "mse": float(np.mean(mses)),
+        "mae": mae,
+        "rmse": rmse,
+        "mape": mape,
+        "nmae": nmae,
     }
 
 def build_loaders_for_series(series: pd.Series, cfg: Dict):
