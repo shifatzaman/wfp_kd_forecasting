@@ -65,6 +65,7 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
     set_seed(int(cfg["seed"]))
     device = choose_device(cfg["train"]["device"])
     prep = load_and_prepare(**cfg["data"])
+    used_commodities = []
 
     # Select enabled teachers subset
     all_teachers = build_teachers(cfg)
@@ -117,7 +118,11 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
         test_metrics = evaluate_model(
             student, loaders["test"], device, scaler=scaler, target=target
 )
+        commodity = prep.meta.loc[
+            prep.meta["key"] == key, "commodity"
+        ].values[0]
 
+        used_commodities.append(commodity)
         per_series_rows.append({
             "key": key,
             "commodity": prep.meta.loc[prep.meta["key"] == key, "commodity"].values[0],
@@ -149,19 +154,19 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
         return float(x.mean()) if len(x) > 0 else float("nan")
 
     metrics = {
+        # commodity info
+        "commodities": "; ".join(used_commodities),
+        "n_commodities": len(used_commodities),
         "market": cfg["data"]["market"],
         "teachers": " + ".join(teacher_names),
         "student": student_name,
         "target": cfg["task"]["target"],
-        "seasonality": cfg["task"].get("add_seasonality", False),
 
         # aggregated test metrics (real price)
-        "test_mae": safe_mean(per_series["student_test_mae"]),
-        "test_rmse": safe_mean(per_series["student_test_rmse"]),
-        "test_mape": safe_mean(per_series["student_test_mape"]),
-        "test_nmae": safe_mean(per_series["student_test_nmae"]),
-
-        "n_series": int(per_series["student_test_mae"].notna().sum()),
+        "MAE": safe_mean(per_series["student_test_mae"]),
+        "RMSE": safe_mean(per_series["student_test_rmse"]),
+        "MAPE": safe_mean(per_series["student_test_mape"]),
+        "NMAE": safe_mean(per_series["student_test_nmae"]),
     }
     return metrics, per_series, history
 
