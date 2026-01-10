@@ -109,8 +109,14 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
         fit_s = train_single_model(student, loaders, cfg, device, teacher_ensemble=ensemble, teacher_feat_fn=feat_fn)
 
         # Evaluate
-        val_metrics = evaluate_model(student, loaders["val"], device, scaler=scaler)
-        test_metrics = evaluate_model(student, loaders["test"], device, scaler=scaler)
+        target = cfg["task"].get("target", "price")
+
+        val_metrics = evaluate_model(
+            student, loaders["val"], device, scaler=scaler, target=target
+        )
+        test_metrics = evaluate_model(
+            student, loaders["test"], device, scaler=scaler, target=target
+)
 
         per_series_rows.append({
             "key": key,

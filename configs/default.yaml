@@ -19,6 +19,7 @@ task:
   horizon: 1         # forecast steps
   stride: 1
   scale: "standard"  # standard|minmax|none
+  target: "residual"
 
 split:
   train: 0.7

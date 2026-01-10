@@ -14,21 +14,26 @@ from ..models.common import ForecastModel, choose_device, MLPProjector
 from .losses import mae_loss, mse_loss, contrastive_loss
 
 class WindowDataset(Dataset):
-    def __init__(self, values: np.ndarray, input_len: int, horizon: int, stride: int):
+    def __init__(self, values: np.ndarray, input_len: int, horizon: int, stride: int, target="price"):
         self.values = values.astype(np.float32)
         self.input_len = input_len
         self.horizon = horizon
         self.stride = stride
         self.n = len(values)
+        self.target = target
         self.idxs = list(range(0, self.n - input_len - horizon + 1, stride))
 
     def __len__(self):
         return len(self.idxs)
 
-    def __getitem__(self, i: int):
+    def __getitem__(self, i):
         t = self.idxs[i]
         x = self.values[t : t + self.input_len]
         y = self.values[t + self.input_len : t + self.input_len + self.horizon]
+
+        if self.target == "residual":
+            y = y - x[-1]   # Δprice
+
         return torch.from_numpy(x), torch.from_numpy(y)
 
 def make_splits(series: pd.Series, train: float, val: float, test: float):
@@ -119,7 +124,13 @@ def train_single_model(
 
             if dist["enabled"] and teacher_ensemble is not None:
                 with torch.no_grad():
-                    yhat_t = teacher_ensemble(x)
+                    yhat_t_price = teacher_ensemble(x)
+
+                if cfg["task"].get("target", "price") == "residual":
+                    x_last = x[:, -1:].detach()
+                    yhat_t = yhat_t_price - x_last
+                else:
+                    yhat_t = yhat_t_price
                 if dist["losses"]["kd_pred"]["enabled"]:
                     kd = mse_loss(yhat, yhat_t) * float(dist["losses"]["kd_pred"]["weight"])
                     loss = loss + kd
@@ -189,7 +200,7 @@ def train_single_model(
     hist = pd.DataFrame(history_rows)
     return FitResult(best_val_mae=best, history=hist)
 
-def evaluate_model(model, loader, device, scaler=None):
+def evaluate_model(model, loader, device, scaler=None, target="price"):
     model.eval()
     maes, mses = [], []
 
@@ -198,6 +209,14 @@ def evaluate_model(model, loader, device, scaler=None):
             x = x.to(device)
             y = y.to(device)
             yhat = model(x)
+
+            if target == "residual":
+                x_last = x[:, -1:].detach()   # (B,1)
+                y_price = y + x_last
+                yhat_price = yhat + x_last
+            else:
+                y_price = y
+                yhat_price = yhat
 
             y_np = y.cpu().numpy()
             yhat_np = yhat.cpu().numpy()
@@ -243,9 +262,11 @@ def build_loaders_for_series(series: pd.Series, cfg: Dict):
         val_vals = val_s.values
         test_vals = test_s.values
 
-    ds_train = WindowDataset(train_vals, input_len, horizon, stride)
-    ds_val = WindowDataset(val_vals, input_len, horizon, stride)
-    ds_test = WindowDataset(test_vals, input_len, horizon, stride)
+    target = cfg["task"].get("target", "price")
+
+    ds_train = WindowDataset(train_vals, input_len, horizon, stride, target=target)
+    ds_val   = WindowDataset(val_vals,   input_len, horizon, stride, target=target)
+    ds_test  = WindowDataset(test_vals,  input_len, horizon, stride, target=target)
 
     bs = int(cfg["train"]["batch_size"])
     nw = int(cfg["train"]["num_workers"])
