@@ -121,11 +121,18 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
         per_series_rows.append({
             "key": key,
             "commodity": prep.meta.loc[prep.meta["key"] == key, "commodity"].values[0],
-            "teacher_set": "+".join(teacher_names),
+            "teacher_set": " + ".join(teacher_names),
             "student": student_name,
+
+            # validation (still MAE only)
             "student_val_mae": val_metrics["mae"],
+
+            # test metrics (real price)
             "student_test_mae": test_metrics["mae"],
-            "student_test_mse": test_metrics["mse"],
+            "student_test_rmse": test_metrics["rmse"],
+            "student_test_mape": test_metrics["mape"],
+            "student_test_nmae": test_metrics["nmae"],
+
             **{f"teacher_{k}_val_mae": v for k, v in teacher_val_mae.items()},
             **{f"teacher_weight_{k}": v for k, v in weights.items()},
         })
@@ -142,13 +149,19 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
         return float(x.mean()) if len(x) > 0 else float("nan")
 
     metrics = {
-        "teacher_set": teacher_names,
-        "student": student_name,
-        "val_mae_mean": safe_mean(per_series["student_val_mae"]),
-        "test_mae_mean": safe_mean(per_series["student_test_mae"]),
-        "test_mse_mean": safe_mean(per_series["student_test_mse"]),
-        "n_series": int(per_series["student_test_mae"].notna().sum()),
         "market": cfg["data"]["market"],
+        "teachers": " + ".join(teacher_names),
+        "student": student_name,
+        "target": cfg["task"]["target"],
+        "seasonality": cfg["task"].get("add_seasonality", False),
+
+        # aggregated test metrics (real price)
+        "test_mae": safe_mean(per_series["student_test_mae"]),
+        "test_rmse": safe_mean(per_series["student_test_rmse"]),
+        "test_mape": safe_mean(per_series["student_test_mape"]),
+        "test_nmae": safe_mean(per_series["student_test_nmae"]),
+
+        "n_series": int(per_series["student_test_mae"].notna().sum()),
     }
     return metrics, per_series, history
 
@@ -183,12 +196,7 @@ def run_grid(cfg: Dict, out_root: str = "runs") -> None:
                 logger.save_df("per_series.csv", per_series)
                 logger.save_df("history.csv", history)
 
-                append_summary(summary_csv, {
-                    "run_id": run_id,
-                    "teachers": "+".join(tset),
-                    "student": sname,
-                    **metrics,
-                })
+                append_summary(summary_csv, metrics)
             except Exception as e:
                 logger.save_json("error.json", {"error": str(e)})
                 append_summary(summary_csv, {
