@@ -81,106 +81,162 @@ def train_single_model(
                 "val_mae": float("inf"),
             }])
         )
+
     train_cfg = cfg["train"]
     dist = cfg["distill"]
-    opt = torch.optim.AdamW(model.parameters(), lr=float(train_cfg["lr"]), weight_decay=float(train_cfg["weight_decay"]))
+
+    opt = torch.optim.AdamW(
+        model.parameters(),
+        lr=float(train_cfg["lr"]),
+        weight_decay=float(train_cfg["weight_decay"]),
+    )
+
     best = float("inf")
     patience = int(train_cfg["early_stopping"]["patience"]) if train_cfg["early_stopping"]["enabled"] else 10**9
     bad = 0
     history_rows = []
 
-    # Feature projector for student (optional)
+    # ------------------------------
+    # Optional feature projector
+    # ------------------------------
     proj = None
     if dist["enabled"] and dist["losses"]["kd_feat"]["enabled"]:
-        proj_dim = int(dist["losses"]["kd_feat"]["proj_dim"])
-        # infer student feature dim with one batch
-        xb, yb = next(iter(loaders["train"]))
+        xb, _ = next(iter(loaders["train"]))
         xb = xb.to(device)
         with torch.no_grad():
             sf = model.get_features(xb)
-        in_dim = int(sf.shape[-1])
+        in_dim = sf.shape[-1]
+        proj_dim = int(dist["losses"]["kd_feat"]["proj_dim"])
+
         if dist["losses"]["kd_feat"]["projector"] == "linear":
             proj = nn.Linear(in_dim, proj_dim).to(device)
         else:
             proj = MLPProjector(in_dim, proj_dim).to(device)
-        opt = torch.optim.AdamW(list(model.parameters()) + list(proj.parameters()), lr=float(train_cfg["lr"]), weight_decay=float(train_cfg["weight_decay"]))
 
+        opt = torch.optim.AdamW(
+            list(model.parameters()) + list(proj.parameters()),
+            lr=float(train_cfg["lr"]),
+            weight_decay=float(train_cfg["weight_decay"]),
+        )
+
+    # ==============================
+    # Training loop
+    # ==============================
     for epoch in range(int(train_cfg["epochs"])):
         model.train()
         if proj is not None:
             proj.train()
+
         tr_losses = []
         pbar = tqdm(loaders["train"], desc=f"train epoch {epoch+1}", leave=False)
+
         for x, y in pbar:
             x = x.to(device)
             y = y.to(device)
 
-            yhat = model(x)
+            # ---- extract last observed price ----
+            if x.dim() == 3:
+                x_last = x[:, -1, 0].unsqueeze(1)  # (B,1)
+            else:
+                x_last = x[:, -1].unsqueeze(1)
 
-            # Hard loss
-            hard = _hard_loss(dist["losses"]["hard"]["type"], yhat, y) * float(dist["losses"]["hard"]["weight"])
+            # ---- student predicts residual ----
+            delta_s = model(x)
+            yhat_price = x_last + delta_s
 
+            # ---- ground-truth price ----
+            if cfg["task"].get("target", "price") == "residual":
+                y_price = y + x_last
+            else:
+                y_price = y
+
+            # ---- hard loss on PRICE ----
+            hard = mae_loss(yhat_price, y_price) * float(dist["losses"]["hard"]["weight"])
             loss = hard
 
+            # ==============================
+            # Knowledge Distillation
+            # ==============================
             if dist["enabled"] and teacher_ensemble is not None:
                 with torch.no_grad():
                     yhat_t_price = teacher_ensemble(x)
+                    delta_t = yhat_t_price - x_last  # teacher residual
 
-                if cfg["task"].get("target", "price") == "residual":
-                    x_last = x[:, -1:].detach()
-                    yhat_t = yhat_t_price - x_last
-                else:
-                    yhat_t = yhat_t_price
+                # ---- KD on residuals ----
                 if dist["losses"]["kd_pred"]["enabled"]:
-                    kd = mse_loss(yhat, yhat_t) * float(dist["losses"]["kd_pred"]["weight"])
+                    kd = mse_loss(delta_s, delta_t) * float(dist["losses"]["kd_pred"]["weight"])
                     loss = loss + kd
 
+                # ---- Feature KD ----
                 if dist["losses"]["kd_feat"]["enabled"] and teacher_feat_fn is not None:
                     with torch.no_grad():
                         tf = teacher_feat_fn(x)
                     sf = model.get_features(x)
                     sfp = proj(sf) if proj is not None else sf
-                    # if dims mismatch, truncate/pad (simple)
-                    if sfp.shape[-1] != tf.shape[-1]:
-                        d = min(sfp.shape[-1], tf.shape[-1])
-                        sfp = sfp[..., :d]
-                        tf = tf[..., :d]
-                    fd = mse_loss(sfp, tf) * float(dist["losses"]["kd_feat"]["weight"])
-                    loss = loss + fd
 
+                    d = min(sfp.shape[-1], tf.shape[-1])
+                    loss = loss + mse_loss(
+                        sfp[..., :d], tf[..., :d]
+                    ) * float(dist["losses"]["kd_feat"]["weight"])
+
+                # ---- Contrastive KD ----
                 if dist["losses"]["kd_contrastive"]["enabled"] and teacher_feat_fn is not None:
                     with torch.no_grad():
                         tf = teacher_feat_fn(x)
                     sf = model.get_features(x)
-                    # match dims (truncate)
                     d = min(sf.shape[-1], tf.shape[-1])
-                    cl = contrastive_loss(sf[..., :d], tf[..., :d], temperature=float(dist["losses"]["kd_contrastive"]["temperature"])) * float(dist["losses"]["kd_contrastive"]["weight"])
-                    loss = loss + cl
+                    loss = loss + contrastive_loss(
+                        sf[..., :d],
+                        tf[..., :d],
+                        temperature=float(dist["losses"]["kd_contrastive"]["temperature"]),
+                    ) * float(dist["losses"]["kd_contrastive"]["weight"])
 
             opt.zero_grad(set_to_none=True)
             loss.backward()
+
             if float(train_cfg["clip_grad"]) > 0:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), float(train_cfg["clip_grad"]))
-            opt.step()
 
+            opt.step()
             tr_losses.append(loss.item())
             pbar.set_postfix({"loss": float(np.mean(tr_losses))})
 
-        # Validation
+        # ------------------------------
+        # Validation (PRICE MAE)
+        # ------------------------------
         model.eval()
         if proj is not None:
             proj.eval()
+
         val_maes = []
         with torch.no_grad():
             for x, y in loaders["val"]:
                 x = x.to(device)
                 y = y.to(device)
-                yhat = model(x)
-                val_maes.append(mae_loss(yhat, y).item())
-        val_mae = float(np.mean(val_maes))
-        tr_loss = float(np.mean(tr_losses)) if tr_losses else float("nan")
 
-        history_rows.append({"epoch": epoch+1, "train_loss": tr_loss, "val_mae": val_mae})
+                if x.dim() == 3:
+                    x_last = x[:, -1, 0].unsqueeze(1)
+                else:
+                    x_last = x[:, -1].unsqueeze(1)
+
+                delta_s = model(x)
+                yhat_price = x_last + delta_s
+
+                if cfg["task"].get("target", "price") == "residual":
+                    y_price = y + x_last
+                else:
+                    y_price = y
+
+                val_maes.append(mae_loss(yhat_price, y_price).item())
+
+        val_mae = float(np.mean(val_maes))
+        tr_loss = float(np.mean(tr_losses))
+
+        history_rows.append({
+            "epoch": epoch + 1,
+            "train_loss": tr_loss,
+            "val_mae": val_mae,
+        })
 
         if val_mae < best - 1e-6:
             best = val_mae
@@ -192,13 +248,11 @@ def train_single_model(
             if bad >= patience:
                 break
 
-    # restore best
     model.load_state_dict(best_state)
     if proj is not None and best_proj is not None:
         proj.load_state_dict(best_proj)
 
-    hist = pd.DataFrame(history_rows)
-    return FitResult(best_val_mae=best, history=hist)
+    return FitResult(best_val_mae=best, history=pd.DataFrame(history_rows))
 
 def evaluate_model(model, loader, device, scaler=None, target="price"):
     """
