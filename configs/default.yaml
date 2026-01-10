@@ -11,7 +11,7 @@ data:
   market_col: "market"
   price_col: "price"
   unit_col: "unit"
-  freq: "M"          # resample frequency (W = weekly). Options: D/W/M
+  freq: "ME"          # resample frequency (W = weekly). Options: D/W/M
   agg: "median"      # when resampling. Options: mean/median
 
 task:
