@@ -189,17 +189,39 @@ def train_single_model(
     hist = pd.DataFrame(history_rows)
     return FitResult(best_val_mae=best, history=hist)
 
-def evaluate_model(model: ForecastModel, loader: DataLoader, device: torch.device) -> Dict[str, float]:
+def evaluate_model(model, loader, device, scaler=None):
     model.eval()
     maes, mses = [], []
+
     with torch.no_grad():
         for x, y in loader:
             x = x.to(device)
             y = y.to(device)
             yhat = model(x)
-            maes.append(mae_loss(yhat, y).item())
-            mses.append(mse_loss(yhat, y).item())
-    return {"mae": float(np.mean(maes)), "mse": float(np.mean(mses))}
+
+            y_np = y.cpu().numpy()
+            yhat_np = yhat.cpu().numpy()
+
+            # 🔑 Inverse scaling → actual BDT/kg
+            if scaler is not None:
+                y_np = scaler.inverse_transform(
+                    y_np.reshape(-1, 1)
+                ).reshape(y_np.shape)
+
+                yhat_np = scaler.inverse_transform(
+                    yhat_np.reshape(-1, 1)
+                ).reshape(yhat_np.shape)
+
+            maes.append(abs(yhat_np - y_np).mean())
+            mses.append(((yhat_np - y_np) ** 2).mean())
+
+    if len(maes) == 0:
+        return {"mae": float("nan"), "mse": float("nan")}
+
+    return {
+        "mae": float(np.mean(maes)),
+        "mse": float(np.mean(mses)),
+    }
 
 def build_loaders_for_series(series: pd.Series, cfg: Dict):
     task = cfg["task"]
