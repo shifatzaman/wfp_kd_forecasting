@@ -20,6 +20,7 @@ task:
   stride: 1
   scale: "standard"  # standard|minmax|none
   target: "residual"
+  add_seasonality: true
 
 split:
   train: 0.7
