@@ -14,16 +14,7 @@ from ..models.common import ForecastModel, choose_device, MLPProjector
 from .losses import mae_loss, mse_loss, contrastive_loss
 
 class WindowDataset(Dataset):
-    def __init__(
-        self,
-        values,
-        input_len,
-        horizon,
-        stride,
-        target="price",
-        add_seasonality=False,
-        months=None,
-    ):
+    def __init__(self, values: np.ndarray, input_len: int, horizon: int, stride: int, target="price"):
         self.values = values.astype(np.float32)
         self.input_len = input_len
         self.horizon = horizon
@@ -31,29 +22,17 @@ class WindowDataset(Dataset):
         self.n = len(values)
         self.target = target
         self.idxs = list(range(0, self.n - input_len - horizon + 1, stride))
-        self.add_seasonality = add_seasonality
-        self.months = months  # array of month numbers aligned with values
 
     def __len__(self):
         return len(self.idxs)
 
     def __getitem__(self, i):
         t = self.idxs[i]
-
-        x = self.values[t : t + self.input_len]           # (L, 1)
+        x = self.values[t : t + self.input_len]
         y = self.values[t + self.input_len : t + self.input_len + self.horizon]
 
         if self.target == "residual":
-            y = y - x[-1]
-
-        # --- 🌙 Add seasonality features ---
-        if self.add_seasonality:
-            m = self.months[t : t + self.input_len]       # month indices [1..12]
-            sin_m = np.sin(2 * np.pi * m / 12.0)
-            cos_m = np.cos(2 * np.pi * m / 12.0)
-
-            # stack: (L, 3) → price + sin + cos
-            x = np.column_stack([x, sin_m, cos_m])
+            y = y - x[-1]   # Δprice
 
         return torch.from_numpy(x), torch.from_numpy(y)
 
@@ -269,7 +248,6 @@ def build_loaders_for_series(series: pd.Series, cfg: Dict):
     input_len = int(task["input_len"])
     horizon = int(task["horizon"])
     stride = int(task.get("stride", 1))
-    months = series.index.month.values.astype(np.float32)
 
     train_s, val_s, test_s = make_splits(series, split["train"], split["val"], split["test"])
 
@@ -286,37 +264,9 @@ def build_loaders_for_series(series: pd.Series, cfg: Dict):
 
     target = cfg["task"].get("target", "price")
 
-    add_seasonality = cfg["task"].get("add_seasonality", False)
-
-    ds_train = WindowDataset(
-        train_vals,
-        input_len,
-        horizon,
-        stride,
-        target=target,
-        add_seasonality=add_seasonality,
-        months=months[: len(train_vals)],
-    )
-
-    ds_val = WindowDataset(
-        val_vals,
-        input_len,
-        horizon,
-        stride,
-        target=target,
-        add_seasonality=add_seasonality,
-        months=months[len(train_vals) : len(train_vals) + len(val_vals)],
-    )
-
-    ds_test = WindowDataset(
-        test_vals,
-        input_len,
-        horizon,
-        stride,
-        target=target,
-        add_seasonality=add_seasonality,
-        months=months[-len(test_vals) :],
-    )
+    ds_train = WindowDataset(train_vals, input_len, horizon, stride, target=target)
+    ds_val   = WindowDataset(val_vals,   input_len, horizon, stride, target=target)
+    ds_test  = WindowDataset(test_vals,  input_len, horizon, stride, target=target)
 
     bs = int(cfg["train"]["batch_size"])
     nw = int(cfg["train"]["num_workers"])
