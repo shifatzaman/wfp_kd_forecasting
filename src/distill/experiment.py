@@ -20,17 +20,22 @@ def _softmax(x: np.ndarray, temp: float = 1.0) -> np.ndarray:
     e = np.exp(z)
     return e / (e.sum() + 1e-8)
 
-def _make_teacher_ensemble(teachers: Dict[str, ForecastModel], weights: Dict[str, float]):
+def _make_teacher_ensemble(teachers, weights):
     names = list(teachers.keys())
     w = torch.tensor([weights[n] for n in names])
     w = w / (w.sum() + 1e-8)
 
-    def ensemble(x: torch.Tensor) -> torch.Tensor:
+    def ensemble(x):
         preds = []
         for n in names:
             preds.append(teachers[n](x))
         stacked = torch.stack(preds, dim=0)  # (T,B,H)
-        return (w.view(-1,1,1).to(stacked.device) * stacked).sum(dim=0)
+
+        mean = (w.view(-1,1,1).to(stacked.device) * stacked).sum(dim=0)
+        var = stacked.var(dim=0, unbiased=False)  # (B,H)
+
+        return mean, var
+
     return ensemble
 
 def _make_teacher_feat_fn(teachers: Dict[str, ForecastModel], weights: Dict[str, float]):

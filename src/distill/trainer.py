@@ -124,7 +124,7 @@ def train_single_model(
 
             if dist["enabled"] and teacher_ensemble is not None:
                 with torch.no_grad():
-                    yhat_t_price = teacher_ensemble(x)
+                    yhat_t_price, yhat_t_var = teacher_ensemble(x)
 
                 if cfg["task"].get("target", "price") == "residual":
                     x_last = x[:, -1:].detach()
@@ -133,7 +133,14 @@ def train_single_model(
                     yhat_t = yhat_t_price
                 if dist["losses"]["kd_pred"]["enabled"]:
                     kd = mse_loss(yhat, yhat_t) * float(dist["losses"]["kd_pred"]["weight"])
-                    loss = loss + kd
+                    if dist.get("uncertainty_weighted", False):
+                        alpha = float(dist.get("uncertainty_alpha", 1.0))
+                        # average variance over horizon
+                        var = yhat_t_var.mean(dim=-1, keepdim=True)  # (B,1)
+                        w_kd = torch.exp(-alpha * var).detach()
+                        kd = (w_kd * (yhat - yhat_t).pow(2)).mean()
+
+                    loss = loss + kd * float(dist["losses"]["kd_pred"]["weight"])
 
                 if dist["losses"]["kd_feat"]["enabled"] and teacher_feat_fn is not None:
                     with torch.no_grad():
