@@ -11,12 +11,12 @@ data:
   market_col: "market"
   price_col: "price"
   unit_col: "unit"
-  freq: "W"          # resample frequency (W = weekly). Options: D/W/M
+  freq: "M"          # resample frequency (W = weekly). Options: D/W/M
   agg: "median"      # when resampling. Options: mean/median
 
 task:
-  input_len: 52      # history length (in resampled steps)
-  horizon: 4         # forecast steps
+  input_len: 24      # history length (in resampled steps)
+  horizon: 3         # forecast steps
   stride: 1
   scale: "standard"  # standard|minmax|none
 
