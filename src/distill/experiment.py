@@ -127,13 +127,17 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
     per_series = pd.DataFrame(per_series_rows)
     history = pd.concat(histories, ignore_index=True) if histories else pd.DataFrame()
 
+    def safe_mean(x):
+        x = x.dropna()
+        return float(x.mean()) if len(x) > 0 else float("nan")
+
     metrics = {
         "teacher_set": teacher_names,
         "student": student_name,
-        "val_mae_mean": float(per_series["student_val_mae"].mean()),
-        "test_mae_mean": float(per_series["student_test_mae"].mean()),
-        "test_mse_mean": float(per_series["student_test_mse"].mean()),
-        "n_series": int(per_series.shape[0]),
+        "val_mae_mean": safe_mean(per_series["student_val_mae"]),
+        "test_mae_mean": safe_mean(per_series["student_test_mae"]),
+        "test_mse_mean": safe_mean(per_series["student_test_mse"]),
+        "n_series": int(per_series["student_test_mae"].notna().sum()),
         "market": cfg["data"]["market"],
     }
     return metrics, per_series, history
