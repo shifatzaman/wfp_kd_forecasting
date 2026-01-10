@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Callable
+from typing import Dict, List, Tuple, Optional
+import copy
 import numpy as np
 import pandas as pd
 import torch
@@ -14,15 +16,17 @@ from ..utils.logging import RunLogger, append_summary
 from ..utils.seed import set_seed
 from .trainer import build_loaders_for_series, train_single_model, evaluate_model
 
+
 def _softmax(x: np.ndarray, temp: float = 1.0) -> np.ndarray:
     z = -x / max(temp, 1e-8)
     z = z - z.max()
     e = np.exp(z)
     return e / (e.sum() + 1e-8)
 
+
 def _make_teacher_ensemble(teachers: Dict[str, ForecastModel], weights: Dict[str, float]):
     names = list(teachers.keys())
-    w = torch.tensor([weights[n] for n in names])
+    w = torch.tensor([weights[n] for n in names], dtype=torch.float32)
     w = w / (w.sum() + 1e-8)
 
     def ensemble(x: torch.Tensor) -> torch.Tensor:
@@ -30,13 +34,14 @@ def _make_teacher_ensemble(teachers: Dict[str, ForecastModel], weights: Dict[str
         for n in names:
             preds.append(teachers[n](x))
         stacked = torch.stack(preds, dim=0)  # (T,B,H)
-        return (w.view(-1,1,1).to(stacked.device) * stacked).sum(dim=0)
+        return (w.view(-1, 1, 1).to(stacked.device) * stacked).sum(dim=0)
+
     return ensemble
 
+
 def _make_teacher_feat_fn(teachers: Dict[str, ForecastModel], weights: Dict[str, float]):
-    # Weighted average of teacher features (truncate to min dim across teachers)
     names = list(teachers.keys())
-    w = torch.tensor([weights[n] for n in names])
+    w = torch.tensor([weights[n] for n in names], dtype=torch.float32)
     w = w / (w.sum() + 1e-8)
 
     def feat(x: torch.Tensor) -> torch.Tensor:
@@ -45,12 +50,14 @@ def _make_teacher_feat_fn(teachers: Dict[str, ForecastModel], weights: Dict[str,
         for n in names:
             f = teachers[n].get_features(x)
             feats.append(f)
-            dims.append(f.shape[-1])
-        d = min(dims)
+            dims.append(int(f.shape[-1]))
+        d = min(dims) if dims else 0
         feats = [f[..., :d] for f in feats]
         stacked = torch.stack(feats, dim=0)  # (T,B,d)
-        return (w.view(-1,1,1).to(stacked.device) * stacked).sum(dim=0)
+        return (w.view(-1, 1, 1).to(stacked.device) * stacked).sum(dim=0)
+
     return feat
+
 
 @dataclass
 class ComboResult:
@@ -61,96 +68,122 @@ class ComboResult:
     test_mae: float
     test_mse: float
 
-def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_dir: str) -> Tuple[Dict, pd.DataFrame, pd.DataFrame]:
+
+def run_one_combo(
+    cfg: Dict,
+    teacher_names: List[str],
+    student_name: str,
+    run_dir: str,
+) -> Tuple[Dict, pd.DataFrame, pd.DataFrame]:
     set_seed(int(cfg["seed"]))
     device = choose_device(cfg["train"]["device"])
     prep = load_and_prepare(**cfg["data"])
-
-    # Select enabled teachers subset
-    all_teachers = build_teachers(cfg)
-    teachers = {k: v for k, v in all_teachers.items() if k in teacher_names}
-    if len(teachers) == 0:
-        raise ValueError("No teachers selected.")
-
-    # Fit teachers per series (independently) then compute teacher weights based on val MAE
-    per_series_rows = []
-    histories = []
 
     dist = cfg["distill"]
     weighting = dist["ensemble"]["weighting"]
     temp = float(dist["ensemble"]["temperature"])
 
+    per_series_rows: List[Dict] = []
+    histories: List[pd.DataFrame] = []
+
+    # Cache metadata mapping for commodity lookup
+    meta_by_key = {}
+    if hasattr(prep, "meta") and isinstance(prep.meta, pd.DataFrame) and "key" in prep.meta.columns:
+        meta_by_key = prep.meta.set_index("key").to_dict(orient="index")
+
     for key, s in prep.series.items():
         loaders, scaler, splits = build_loaders_for_series(s, cfg)
-
         if len(loaders["train"]) == 0 or len(loaders["val"]) == 0 or len(loaders["test"]) == 0:
             continue
 
-        # Train each teacher on this series
-        teacher_val_mae = {}
-        for tname, tmodel in teachers.items():
-            tmodel = tmodel.to(device)
-            fit = train_single_model(tmodel, loaders, cfg, device, teacher_ensemble=None)
-            teacher_val_mae[tname] = float(fit.best_val_mae)
+        # --- Train teachers fresh per-series (IMPORTANT: no cross-series leakage) ---
+        trained_teachers: Dict[str, ForecastModel] = {}
+        teacher_val_mae: Dict[str, float] = {}
 
+        if len(teacher_names) == 0:
+            raise ValueError("No teachers selected.")
+
+        for tname in teacher_names:
+            all_teachers = build_teachers(cfg)  # fresh instances
+            if tname not in all_teachers:
+                raise ValueError(f"Teacher '{tname}' not available/enabled in config.")
+            tmodel = all_teachers[tname].to(device)
+            fit_t = train_single_model(tmodel, loaders, cfg, device, teacher_ensemble=None)
+            trained_teachers[tname] = tmodel
+            teacher_val_mae[tname] = float(fit_t.best_val_mae)
+
+        # --- Compute teacher weights ---
         if weighting == "uniform":
-            weights = {k: 1.0 for k in teachers.keys()}
+            weights = {k: 1.0 for k in trained_teachers.keys()}
         else:
-            maes = np.array([teacher_val_mae[k] for k in teachers.keys()], dtype=np.float64)
+            maes = np.array([teacher_val_mae[k] for k in trained_teachers.keys()], dtype=np.float64)
             sw = _softmax(maes, temp=temp)  # smaller MAE => larger weight
-            weights = {k: float(sw[i]) for i, k in enumerate(teachers.keys())}
+            weights = {k: float(sw[i]) for i, k in enumerate(trained_teachers.keys())}
 
-        # Prepare ensemble fns
-        ensemble = _make_teacher_ensemble(teachers, weights)
-        feat_fn = _make_teacher_feat_fn(teachers, weights) if dist["losses"]["kd_feat"]["enabled"] or dist["losses"]["kd_contrastive"]["enabled"] else None
+        # --- Prepare teacher ensemble + feature function ---
+        ensemble = _make_teacher_ensemble(trained_teachers, weights)
+        feat_fn = None
+        if dist["enabled"] and (
+            dist["losses"]["kd_feat"]["enabled"] or dist["losses"]["kd_contrastive"]["enabled"]
+        ):
+            feat_fn = _make_teacher_feat_fn(trained_teachers, weights)
 
-        # Train student
+        # --- Train student ---
         student = build_student(cfg, student_name).to(device)
-        fit_s = train_single_model(student, loaders, cfg, device, teacher_ensemble=ensemble, teacher_feat_fn=feat_fn)
-
-        # Evaluate
-        target = cfg["task"].get("target", "price")
-
-        val_metrics = evaluate_model(
-            student, loaders["val"], device, scaler=scaler, target=target
+        fit_s = train_single_model(
+            student,
+            loaders,
+            cfg,
+            device,
+            teacher_ensemble=ensemble if dist["enabled"] else None,
+            teacher_feat_fn=feat_fn if dist["enabled"] else None,
         )
-        test_metrics = evaluate_model(
-            student, loaders["test"], device, scaler=scaler, target=target
-)
 
-        per_series_rows.append({
-            "key": key,
-            "commodity": prep.meta.loc[prep.meta["key"] == key, "commodity"].values[0],
-            "teacher_set": "+".join(teacher_names),
-            "student": student_name,
-            "student_val_mae": val_metrics["mae"],
-            "student_test_mae": test_metrics["mae"],
-            "student_test_mse": test_metrics["mse"],
-            **{f"teacher_{k}_val_mae": v for k, v in teacher_val_mae.items()},
-            **{f"teacher_weight_{k}": v for k, v in weights.items()},
-        })
+        # --- Evaluate in actual units (BDT/kg) using evaluate_model() ---
+        target = cfg["task"].get("target", "price")
+        val_metrics = evaluate_model(student, loaders["val"], device, scaler=scaler, target=target)
+        test_metrics = evaluate_model(student, loaders["test"], device, scaler=scaler, target=target)
+
+        commodity = None
+        if key in meta_by_key and "commodity" in meta_by_key[key]:
+            commodity = meta_by_key[key]["commodity"]
+
+        per_series_rows.append(
+            {
+                "key": key,
+                "commodity": commodity,
+                "teacher_set": "+".join(teacher_names),
+                "student": student_name,
+                "student_val_mae": val_metrics["mae"],
+                "student_test_mae": test_metrics["mae"],
+                "student_test_mse": test_metrics["mse"],
+                **{f"teacher_{k}_val_mae": v for k, v in teacher_val_mae.items()},
+                **{f"teacher_weight_{k}": v for k, v in weights.items()},
+            }
+        )
+
         h = fit_s.history.copy()
         h["series_key"] = key
         histories.append(h)
 
     per_series = pd.DataFrame(per_series_rows)
     history = pd.concat(histories, ignore_index=True) if histories else pd.DataFrame()
-    
 
-    def safe_mean(x):
+    def safe_mean(x: pd.Series) -> float:
         x = x.dropna()
         return float(x.mean()) if len(x) > 0 else float("nan")
 
     metrics = {
         "teacher_set": teacher_names,
         "student": student_name,
-        "val_mae_mean": safe_mean(per_series["student_val_mae"]),
-        "test_mae_mean": safe_mean(per_series["student_test_mae"]),
-        "test_mse_mean": safe_mean(per_series["student_test_mse"]),
-        "n_series": int(per_series["student_test_mae"].notna().sum()),
+        "val_mae_mean": safe_mean(per_series["student_val_mae"]) if not per_series.empty else float("nan"),
+        "test_mae_mean": safe_mean(per_series["student_test_mae"]) if not per_series.empty else float("nan"),
+        "test_mse_mean": safe_mean(per_series["student_test_mse"]) if not per_series.empty else float("nan"),
+        "n_series": int(per_series["student_test_mae"].notna().sum()) if not per_series.empty else 0,
         "market": cfg["data"]["market"],
     }
     return metrics, per_series, history
+
 
 def run_grid(cfg: Dict, out_root: str = "runs") -> None:
     out_root = str(out_root)
@@ -172,8 +205,8 @@ def run_grid(cfg: Dict, out_root: str = "runs") -> None:
             run_dir = Path(out_root) / run_id
             logger = RunLogger(run_dir)
 
-            # resolve config for this run
-            cfg_run = dict(cfg)
+            # resolve config for this run (deep copy to avoid mutation bleed)
+            cfg_run = copy.deepcopy(cfg)
             cfg_run["selected"] = {"teachers": tset, "student": sname}
             save_yaml(cfg_run, run_dir / "config_resolved.yaml")
 
@@ -183,17 +216,23 @@ def run_grid(cfg: Dict, out_root: str = "runs") -> None:
                 logger.save_df("per_series.csv", per_series)
                 logger.save_df("history.csv", history)
 
-                append_summary(summary_csv, {
-                    "run_id": run_id,
-                    "teachers": "+".join(tset),
-                    "student": sname,
-                    **metrics,
-                })
+                append_summary(
+                    summary_csv,
+                    {
+                        "run_id": run_id,
+                        "teachers": "+".join(tset),
+                        "student": sname,
+                        **metrics,
+                    },
+                )
             except Exception as e:
                 logger.save_json("error.json", {"error": str(e)})
-                append_summary(summary_csv, {
-                    "run_id": run_id,
-                    "teachers": "+".join(tset),
-                    "student": sname,
-                    "error": str(e),
-                })
+                append_summary(
+                    summary_csv,
+                    {
+                        "run_id": run_id,
+                        "teachers": "+".join(tset),
+                        "student": sname,
+                        "error": str(e),
+                    },
+                )
