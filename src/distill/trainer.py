@@ -67,10 +67,7 @@ def train_single_model(
     teacher_feat_fn: Optional[callable] = None,
 ) -> FitResult:
 
-# Guard: if no batches, skip cleanly
-    # Guard: if no batches, skip cleanly
     if len(loaders["train"]) == 0 or len(loaders["val"]) == 0:
-        import pandas as pd
         return FitResult(
             best_val_mae=float("inf"),
             history=pd.DataFrame([{
