@@ -83,6 +83,9 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
     for key, s in prep.series.items():
         loaders, scaler, splits = build_loaders_for_series(s, cfg)
 
+        if len(loaders["train"]) == 0 or len(loaders["val"]) == 0 or len(loaders["test"]) == 0:
+            continue
+
         # Train each teacher on this series
         teacher_val_mae = {}
         for tname, tmodel in teachers.items():
@@ -126,6 +129,7 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
 
     per_series = pd.DataFrame(per_series_rows)
     history = pd.concat(histories, ignore_index=True) if histories else pd.DataFrame()
+    
 
     def safe_mean(x):
         x = x.dropna()
