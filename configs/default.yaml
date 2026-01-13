@@ -5,7 +5,7 @@ data:
   country: "Bangladesh"
   currency: "BDT"
   market: "Dhaka"
-  n_commodities: 4
+  n_commodities: 7
   date_col: "date"
   commodity_col: "commodity"
   market_col: "market"
@@ -15,7 +15,7 @@ data:
   agg: "median"      # when resampling. Options: mean/median
 
 task:
-  input_len: 12      # history length (in resampled steps)
+  input_len: 18      # history length (in resampled steps)
   horizon: 1         # forecast steps
   stride: 1
   scale: "standard"  # standard|minmax|none
@@ -52,17 +52,17 @@ teachers:
 students:
   common:
     hidden: 128
-    dropout: 0.15
+    dropout: 0.2
   models:
     mlp:
       enabled: true
-      layers: [512, 256, 128]
+      layers: [256, 128, 64]
     gru:
       enabled: true
       num_layers: 3
     kan:
       enabled: true
-      grid_size: 24
+      grid_size: 20
 
 distill:
   enabled: true
@@ -96,14 +96,14 @@ distill:
 
 train:
   device: "auto"         # auto|cpu|cuda
-  epochs: 80
-  batch_size: 64
-  lr: 1.0e-3
+  epochs: 60
+  batch_size: 32
+  lr: 8.0e-4
   weight_decay: 1.0e-4
   clip_grad: 1.0
   early_stopping:
     enabled: true
-    patience: 12
+    patience: 10
     metric: "val_mae"
   num_workers: 0
 
