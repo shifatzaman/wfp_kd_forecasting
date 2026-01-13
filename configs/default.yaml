@@ -15,8 +15,8 @@ data:
   agg: "median"      # when resampling. Options: mean/median
 
 task:
-  input_len: 12      # history length (in resampled steps)
-  horizon: 1         # forecast steps
+  input_len: 24      # history length (in resampled steps)
+  horizon: 3         # forecast steps
   stride: 1
   scale: "standard"  # standard|minmax|none
   target: "price"
@@ -75,11 +75,11 @@ distill:
   losses:
     hard:
       type: "mae"        # mae or mse
-      weight: 0.7
+      weight: 0.5
     kd_pred:
       enabled: true
       type: "mse"        # mse on predictions
-      weight: 0.3
+      weight: 0.5
     kd_feat:
       enabled: false
       type: "mse"
@@ -91,8 +91,8 @@ distill:
       temperature: 0.2
       weight: 0.05
     kd_diff:
-      enabled: false
-      weight: 0.2
+      enabled: true
+      weight: 0.05
 
 train:
   device: "auto"         # auto|cpu|cuda
