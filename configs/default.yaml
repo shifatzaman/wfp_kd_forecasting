@@ -19,7 +19,7 @@ task:
   horizon: 1         # forecast steps
   stride: 1
   scale: "minmax"    # standard|minmax|none
-  target: "price"
+  target: "residual"
 
 split:
   train: 0.75
@@ -51,59 +51,59 @@ teachers:
 
 students:
   common:
-    hidden: 256
-    dropout: 0.2
+    hidden: 512
+    dropout: 0.25
   models:
     mlp:
       enabled: true
-      layers: [512, 256, 128]
+      layers: [1024, 512, 256]
     gru:
       enabled: true
-      num_layers: 4
+      num_layers: 5
     kan:
       enabled: true
-      grid_size: 32
+      grid_size: 48
 
 distill:
   enabled: true
   uncertainty_weighted: true
-  uncertainty_alpha: 2.0
+  uncertainty_alpha: 2.5
   mode: "offline"     # offline only in this repo
   ensemble:
     weighting: "val_mae_softmax"  # uniform|val_mae_softmax
-    temperature: 0.3
+    temperature: 0.2
   losses:
     hard:
       type: "mae"        # mae or mse
-      weight: 0.3
+      weight: 0.25
     kd_pred:
       enabled: true
       type: "mse"        # mse on predictions
-      weight: 0.6
+      weight: 0.65
     kd_feat:
       enabled: true
       type: "mse"
-      weight: 0.15
+      weight: 0.2
       projector: "mlp"   # mlp|linear
-      proj_dim: 256
+      proj_dim: 512
     kd_contrastive:
       enabled: false
       temperature: 0.2
       weight: 0.05
     kd_diff:
       enabled: true
-      weight: 0.1
+      weight: 0.15
 
 train:
   device: "auto"         # auto|cpu|cuda
-  epochs: 100
-  batch_size: 16
-  lr: 2.0e-4
-  weight_decay: 1.0e-5
+  epochs: 150
+  batch_size: 8
+  lr: 1.0e-4
+  weight_decay: 5.0e-6
   clip_grad: 1.0
   early_stopping:
     enabled: true
-    patience: 15
+    patience: 20
     metric: "val_mae"
   num_workers: 0
 
