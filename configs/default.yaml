@@ -5,7 +5,7 @@ data:
   country: "Bangladesh"
   currency: "BDT"
   market: "Dhaka"
-  n_commodities: 4
+  n_commodities: 7
   date_col: "date"
   commodity_col: "commodity"
   market_col: "market"
@@ -15,7 +15,7 @@ data:
   agg: "median"      # when resampling. Options: mean/median
 
 task:
-  input_len: 12      # history length (in resampled steps)
+  input_len: 18      # history length (in resampled steps)
   horizon: 1         # forecast steps
   stride: 1
   scale: "standard"  # standard|minmax|none
@@ -51,41 +51,41 @@ teachers:
 
 students:
   common:
-    hidden: 64
-    dropout: 0.1
+    hidden: 128
+    dropout: 0.15
   models:
     mlp:
       enabled: true
-      layers: [128, 64]
+      layers: [256, 128, 64]
     gru:
       enabled: true
-      num_layers: 2
+      num_layers: 3
     kan:
       enabled: true
-      grid_size: 16
+      grid_size: 24
 
 distill:
   enabled: true
-  uncertainty_weighted: false
-  uncertainty_alpha: 1.0 
+  uncertainty_weighted: true
+  uncertainty_alpha: 1.5
   mode: "offline"     # offline only in this repo
   ensemble:
     weighting: "val_mae_softmax"  # uniform|val_mae_softmax
-    temperature: 1.0
+    temperature: 0.5
   losses:
     hard:
       type: "mae"        # mae or mse
-      weight: 0.5
+      weight: 0.4
     kd_pred:
       enabled: true
       type: "mse"        # mse on predictions
       weight: 0.5
     kd_feat:
-      enabled: false
+      enabled: true
       type: "mse"
-      weight: 0.05
-      projector: "linear"   # mlp|linear
-      proj_dim: 64
+      weight: 0.1
+      projector: "mlp"   # mlp|linear
+      proj_dim: 128
     kd_contrastive:
       enabled: false
       temperature: 0.2
@@ -96,14 +96,14 @@ distill:
 
 train:
   device: "auto"         # auto|cpu|cuda
-  epochs: 30
-  batch_size: 64
-  lr: 1.0e-3
-  weight_decay: 1.0e-4
+  epochs: 50
+  batch_size: 32
+  lr: 5.0e-4
+  weight_decay: 5.0e-5
   clip_grad: 1.0
   early_stopping:
     enabled: true
-    patience: 7
+    patience: 10
     metric: "val_mae"
   num_workers: 0
 
