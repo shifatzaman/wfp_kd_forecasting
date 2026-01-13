@@ -175,7 +175,7 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
         "RMSE": safe_mean(per_series["student_test_rmse"]),
         "MAPE": safe_mean(per_series["student_test_mape"]),
         "NMAE": safe_mean(per_series["student_test_nmae"]),
-        "R2": safe_mean(per_series["student_test_r2"]),
+        #"R2": safe_mean(per_series["student_test_r2"]),
         "sMAPE": safe_mean(per_series["student_test_smape"]),
         "MASE": safe_mean(per_series["student_test_mase"]),
     }
