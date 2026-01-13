@@ -52,7 +52,7 @@ teachers:
 students:
   common:
     hidden: 128
-    dropout: 0.2
+    dropout: 0.15
   models:
     mlp:
       enabled: true
@@ -62,16 +62,16 @@ students:
       num_layers: 3
     kan:
       enabled: true
-      grid_size: 20
+      grid_size: 24
 
 distill:
   enabled: true
-  uncertainty_weighted: false
-  uncertainty_alpha: 1.0
+  uncertainty_weighted: true
+  uncertainty_alpha: 1.5
   mode: "offline"     # offline only in this repo
   ensemble:
     weighting: "val_mae_softmax"  # uniform|val_mae_softmax
-    temperature: 1.0
+    temperature: 0.5
   losses:
     hard:
       type: "mae"        # mae or mse
@@ -79,13 +79,13 @@ distill:
     kd_pred:
       enabled: true
       type: "mse"        # mse on predictions
-      weight: 0.6
+      weight: 0.5
     kd_feat:
-      enabled: false
+      enabled: true
       type: "mse"
-      weight: 0.05
-      projector: "linear"   # mlp|linear
-      proj_dim: 64
+      weight: 0.1
+      projector: "mlp"   # mlp|linear
+      proj_dim: 128
     kd_contrastive:
       enabled: false
       temperature: 0.2
@@ -96,10 +96,10 @@ distill:
 
 train:
   device: "auto"         # auto|cpu|cuda
-  epochs: 60
+  epochs: 50
   batch_size: 32
-  lr: 8.0e-4
-  weight_decay: 1.0e-4
+  lr: 5.0e-4
+  weight_decay: 5.0e-5
   clip_grad: 1.0
   early_stopping:
     enabled: true
