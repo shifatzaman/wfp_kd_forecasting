@@ -142,6 +142,9 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
             "student_test_rmse": test_metrics["rmse"],
             "student_test_mape": test_metrics["mape"],
             "student_test_nmae": test_metrics["nmae"],
+            "student_test_r2": test_metrics["r2"],
+            "student_test_smape": test_metrics["smape"],
+            "student_test_mase": test_metrics["mase"],
 
             **{f"teacher_{k}_val_mae": v for k, v in teacher_val_mae.items()},
             **{f"teacher_weight_{k}": v for k, v in weights.items()},
@@ -172,6 +175,9 @@ def run_one_combo(cfg: Dict, teacher_names: List[str], student_name: str, run_di
         "RMSE": safe_mean(per_series["student_test_rmse"]),
         "MAPE": safe_mean(per_series["student_test_mape"]),
         "NMAE": safe_mean(per_series["student_test_nmae"]),
+        "R2": safe_mean(per_series["student_test_r2"]),
+        "sMAPE": safe_mean(per_series["student_test_smape"]),
+        "MASE": safe_mean(per_series["student_test_mase"]),
     }
     return metrics, per_series, history
 
