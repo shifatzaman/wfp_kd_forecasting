@@ -18,8 +18,8 @@ task:
   input_len: 24      # history length (in resampled steps)
   horizon: 1         # forecast steps
   stride: 1
-  scale: "minmax"    # standard|minmax|none
-  target: "residual"
+  scale: "standard"  # standard|minmax|none
+  target: "price"
 
 split:
   train: 0.75
@@ -67,23 +67,23 @@ students:
 distill:
   enabled: true
   uncertainty_weighted: true
-  uncertainty_alpha: 2.5
+  uncertainty_alpha: 3.0
   mode: "offline"     # offline only in this repo
   ensemble:
     weighting: "val_mae_softmax"  # uniform|val_mae_softmax
-    temperature: 0.2
+    temperature: 0.15
   losses:
     hard:
       type: "mae"        # mae or mse
-      weight: 0.25
+      weight: 0.2
     kd_pred:
       enabled: true
       type: "mse"        # mse on predictions
-      weight: 0.65
+      weight: 0.7
     kd_feat:
       enabled: true
       type: "mse"
-      weight: 0.2
+      weight: 0.25
       projector: "mlp"   # mlp|linear
       proj_dim: 512
     kd_contrastive:
@@ -92,7 +92,7 @@ distill:
       weight: 0.05
     kd_diff:
       enabled: true
-      weight: 0.15
+      weight: 0.2
 
 train:
   device: "auto"         # auto|cpu|cuda
