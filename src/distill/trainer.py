@@ -106,7 +106,7 @@ def train_single_model(
         opt = torch.optim.AdamW(list(model.parameters()) + list(proj.parameters()), lr=float(train_cfg["lr"]), weight_decay=float(train_cfg["weight_decay"]))
 
     # Add learning rate scheduler for better convergence
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, mode='min', factor=0.5, patience=5, verbose=False)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, mode='min', factor=0.5, patience=5)
 
     for epoch in range(int(train_cfg["epochs"])):
         model.train()
