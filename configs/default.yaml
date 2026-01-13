@@ -52,11 +52,11 @@ teachers:
 students:
   common:
     hidden: 512
-    dropout: 0.25
+    dropout: 0.3
   models:
     mlp:
       enabled: true
-      layers: [1024, 512, 256]
+      layers: [2048, 1024, 512, 256]
     gru:
       enabled: true
       num_layers: 5
@@ -96,14 +96,14 @@ distill:
 
 train:
   device: "auto"         # auto|cpu|cuda
-  epochs: 150
-  batch_size: 8
-  lr: 1.0e-4
-  weight_decay: 5.0e-6
+  epochs: 200
+  batch_size: 4
+  lr: 5.0e-5
+  weight_decay: 1.0e-6
   clip_grad: 1.0
   early_stopping:
     enabled: true
-    patience: 20
+    patience: 25
     metric: "val_mae"
   num_workers: 0
 
