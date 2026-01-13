@@ -15,7 +15,7 @@ data:
   agg: "median"      # when resampling. Options: mean/median
 
 task:
-  input_len: 6      # history length (in resampled steps)
+  input_len: 18      # history length (in resampled steps)
   horizon: 1         # forecast steps
   stride: 1
   scale: "standard"  # standard|minmax|none
@@ -91,7 +91,7 @@ distill:
       temperature: 0.2
       weight: 0.05
     kd_diff:
-      enabled: true
+      enabled: false
       weight: 0.05
 
 train:
