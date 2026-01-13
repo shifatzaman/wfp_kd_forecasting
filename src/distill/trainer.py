@@ -105,9 +105,6 @@ def train_single_model(
             proj = MLPProjector(in_dim, proj_dim).to(device)
         opt = torch.optim.AdamW(list(model.parameters()) + list(proj.parameters()), lr=float(train_cfg["lr"]), weight_decay=float(train_cfg["weight_decay"]))
 
-    # Add learning rate scheduler for better convergence
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, mode='min', factor=0.5, patience=5)
-
     for epoch in range(int(train_cfg["epochs"])):
         model.train()
         if proj is not None:
@@ -207,9 +204,6 @@ def train_single_model(
         tr_loss = float(np.mean(tr_losses)) if tr_losses else float("nan")
 
         history_rows.append({"epoch": epoch+1, "train_loss": tr_loss, "val_mae": val_mae})
-
-        # Step learning rate scheduler
-        scheduler.step(val_mae)
 
         if val_mae < best - 1e-6:
             best = val_mae
