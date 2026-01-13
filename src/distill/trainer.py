@@ -207,17 +207,29 @@ def train_single_model(
     hist = pd.DataFrame(history_rows)
     return FitResult(best_val_mae=best, history=hist)
 
-def evaluate_model(model, loader, device, scaler=None, target="price"):
+def evaluate_model(model, loader, device, scaler=None, target="price", eps: float = 1e-8):
     """
-    Evaluate model on real price scale (BDT/kg).
+    Evaluate model on a loader.
+    Returns metrics in *original units* if scaler is provided (BDT/kg).
 
-    Returns:
-        dict with mae, rmse, mape, nmae
+    Metrics:
+      - MAE
+      - RMSE
+      - MAPE
+      - sMAPE
+      - nMAE (MAE / mean(|y|))
+      - R2
+      - MASE (scaled by naive forecast error)
     """
+    import numpy as np
+
     model.eval()
 
-    all_y = []
-    all_yhat = []
+    y_all = []
+    yhat_all = []
+
+    # For MASE naive baseline: use last observed value in the input window (seasonal-naive optional later)
+    naive_all = []
 
     with torch.no_grad():
         for x, y in loader:
@@ -226,61 +238,86 @@ def evaluate_model(model, loader, device, scaler=None, target="price"):
 
             yhat = model(x)
 
-            # --- reconstruct price if residual forecasting ---
+            # If residual target, reconstruct price
             if target == "residual":
                 if x.dim() == 3:
-                    # x: (B, L, C) → price channel only
-                    x_last = x[:, -1, 0].unsqueeze(1)
+                    x_last = x[:, -1, 0].detach().unsqueeze(1)  # (B,1)
                 else:
-                    x_last = x[:, -1].unsqueeze(1)
-
+                    x_last = x[:, -1].detach().unsqueeze(1)
                 y_price = y + x_last
                 yhat_price = yhat + x_last
+                naive = x_last
             else:
                 y_price = y
                 yhat_price = yhat
+                if x.dim() == 3:
+                    naive = x[:, -1, 0].detach().unsqueeze(1)
+                else:
+                    naive = x[:, -1].detach().unsqueeze(1)
 
-            y_np = y_price.cpu().numpy().reshape(-1, 1)
-            yhat_np = yhat_price.cpu().numpy().reshape(-1, 1)
+            y_np = y_price.detach().cpu().numpy()
+            yhat_np = yhat_price.detach().cpu().numpy()
+            naive_np = naive.detach().cpu().numpy()
 
-            # --- inverse scaling to real BDT/kg ---
+            # Inverse scaling to original units (BDT/kg)
             if scaler is not None:
-                y_np = scaler.inverse_transform(y_np)
-                yhat_np = scaler.inverse_transform(yhat_np)
+                y_np = scaler.inverse_transform(y_np.reshape(-1, 1)).reshape(y_np.shape)
+                yhat_np = scaler.inverse_transform(yhat_np.reshape(-1, 1)).reshape(yhat_np.shape)
+                naive_np = scaler.inverse_transform(naive_np.reshape(-1, 1)).reshape(naive_np.shape)
 
-            all_y.append(y_np.squeeze())
-            all_yhat.append(yhat_np.squeeze())
+            y_all.append(y_np)
+            yhat_all.append(yhat_np)
+            naive_all.append(naive_np)
 
-    if len(all_y) == 0:
+    if len(y_all) == 0:
         return {
             "mae": float("nan"),
             "rmse": float("nan"),
             "mape": float("nan"),
+            "smape": float("nan"),
             "nmae": float("nan"),
+            "r2": float("nan"),
+            "mase": float("nan"),
         }
 
-    y_all = np.concatenate(all_y)
-    yhat_all = np.concatenate(all_yhat)
+    y_all = np.concatenate(y_all, axis=0)         # (N,H)
+    yhat_all = np.concatenate(yhat_all, axis=0)   # (N,H)
+    naive_all = np.concatenate(naive_all, axis=0) # (N,1) or (N,H)
 
-    # --- metrics ---
-    abs_err = np.abs(yhat_all - y_all)
-    sq_err = (yhat_all - y_all) ** 2
+    err = yhat_all - y_all
 
-    mae = float(np.mean(abs_err))
-    rmse = float(np.sqrt(np.mean(sq_err)))
+    mae = float(np.mean(np.abs(err)))
+    rmse = float(np.sqrt(np.mean(err ** 2)))
 
-    # safe MAPE (prices are > 0, but be defensive)
-    eps = 1e-8
-    mape = float(np.mean(abs_err / (np.abs(y_all) + eps)) * 100.0)
+    denom = np.maximum(np.abs(y_all), eps)
+    mape = float(np.mean(np.abs(err) / denom) * 100.0)
 
-    # normalized MAE (scale-free)
-    nmae = float(mae / (np.mean(np.abs(y_all)) + eps))
+    smape_denom = np.maximum(np.abs(y_all) + np.abs(yhat_all), eps)
+    smape = float(np.mean(2.0 * np.abs(err) / smape_denom) * 100.0)
+
+    y_mean_abs = float(np.mean(np.abs(y_all)))
+    nmae = float(mae / max(y_mean_abs, eps))
+
+    # R2: 1 - SSE/SST
+    y_mean = np.mean(y_all)
+    sse = float(np.sum((y_all - yhat_all) ** 2))
+    sst = float(np.sum((y_all - y_mean) ** 2))
+    r2 = float(1.0 - (sse / max(sst, eps)))
+
+    # MASE: MAE / MAE(naive)
+    # naive forecast uses last observed value; compare against true future value(s)
+    naive_err = naive_all - y_all
+    naive_mae = float(np.mean(np.abs(naive_err)))
+    mase = float(mae / max(naive_mae, eps))
 
     return {
         "mae": mae,
         "rmse": rmse,
         "mape": mape,
+        "smape": smape,
         "nmae": nmae,
+        "r2": r2,
+        "mase": mase,
     }
 
 def build_loaders_for_series(series: pd.Series, cfg: Dict):
