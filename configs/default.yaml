@@ -15,8 +15,8 @@ data:
   agg: "median"      # when resampling. Options: mean/median
 
 task:
-  input_len: 24      # history length (in resampled steps)
-  horizon: 3         # forecast steps
+  input_len: 6      # history length (in resampled steps)
+  horizon: 1         # forecast steps
   stride: 1
   scale: "standard"  # standard|minmax|none
   target: "price"
