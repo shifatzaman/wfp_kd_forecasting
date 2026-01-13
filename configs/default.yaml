@@ -75,11 +75,11 @@ distill:
   losses:
     hard:
       type: "mae"        # mae or mse
-      weight: 0.5
+      weight: 0.7
     kd_pred:
       enabled: true
       type: "mse"        # mse on predictions
-      weight: 0.5
+      weight: 0.3
     kd_feat:
       enabled: false
       type: "mse"
@@ -91,7 +91,7 @@ distill:
       temperature: 0.2
       weight: 0.05
     kd_diff:
-      enabled: true
+      enabled: false
       weight: 0.2
 
 train:
