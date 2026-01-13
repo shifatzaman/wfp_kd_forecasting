@@ -51,59 +51,59 @@ teachers:
 
 students:
   common:
-    hidden: 512
+    hidden: 256
     dropout: 0.3
   models:
     mlp:
       enabled: true
-      layers: [2048, 1024, 512, 256]
+      layers: [1024, 512, 256]
     gru:
       enabled: true
-      num_layers: 5
+      num_layers: 4
     kan:
       enabled: true
-      grid_size: 48
+      grid_size: 32
 
 distill:
   enabled: true
   uncertainty_weighted: true
-  uncertainty_alpha: 3.0
+  uncertainty_alpha: 4.0
   mode: "offline"     # offline only in this repo
   ensemble:
     weighting: "val_mae_softmax"  # uniform|val_mae_softmax
-    temperature: 0.15
+    temperature: 0.1
   losses:
     hard:
       type: "mae"        # mae or mse
-      weight: 0.2
+      weight: 0.15
     kd_pred:
       enabled: true
       type: "mse"        # mse on predictions
-      weight: 0.7
+      weight: 0.8
     kd_feat:
       enabled: true
       type: "mse"
       weight: 0.25
       projector: "mlp"   # mlp|linear
-      proj_dim: 512
+      proj_dim: 384
     kd_contrastive:
       enabled: false
       temperature: 0.2
       weight: 0.05
     kd_diff:
       enabled: true
-      weight: 0.2
+      weight: 0.25
 
 train:
   device: "auto"         # auto|cpu|cuda
-  epochs: 200
-  batch_size: 4
-  lr: 5.0e-5
+  epochs: 120
+  batch_size: 16
+  lr: 8.0e-5
   weight_decay: 1.0e-6
   clip_grad: 1.0
   early_stopping:
     enabled: true
-    patience: 25
+    patience: 18
     metric: "val_mae"
   num_workers: 0
 
