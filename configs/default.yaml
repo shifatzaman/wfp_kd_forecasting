@@ -5,7 +5,7 @@ data:
   country: "Bangladesh"
   currency: "BDT"
   market: "Dhaka"
-  n_commodities: 5
+  n_commodities: 7
   date_col: "date"
   commodity_col: "commodity"
   market_col: "market"
