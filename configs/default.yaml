@@ -90,6 +90,9 @@ distill:
       enabled: false
       temperature: 0.2
       weight: 0.05
+    kd_diff:
+      enabled: true
+      weight: 0.2
 
 train:
   device: "auto"         # auto|cpu|cuda

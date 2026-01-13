@@ -141,6 +141,22 @@ def train_single_model(
                         kd = (w_kd * (yhat - yhat_t).pow(2)).mean()
 
                     loss = loss + kd * float(dist["losses"]["kd_pred"]["weight"])
+                
+                # ---- KD on price difference (Δ) ----
+                if dist["losses"].get("kd_diff", {}).get("enabled", False):
+                    w = float(dist["losses"]["kd_diff"]["weight"])
+
+                    # last observed price from input
+                    if x.dim() == 3:
+                        x_last = x[:, -1, 0].detach().unsqueeze(1)
+                    else:
+                        x_last = x[:, -1].detach().unsqueeze(1)
+
+                    dy_s = yhat - x_last
+                    dy_t = yhat_t - x_last
+
+                    kd_diff = mse_loss(dy_s, dy_t) * w
+                    loss = loss + kd_diff
 
                 if dist["losses"]["kd_feat"]["enabled"] and teacher_feat_fn is not None:
                     with torch.no_grad():
