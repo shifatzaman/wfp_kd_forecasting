@@ -15,22 +15,22 @@ data:
   agg: "median"      # when resampling. Options: mean/median
 
 task:
-  input_len: 18      # history length (in resampled steps)
+  input_len: 24      # history length (in resampled steps)
   horizon: 1         # forecast steps
   stride: 1
-  scale: "standard"  # standard|minmax|none
+  scale: "minmax"    # standard|minmax|none
   target: "price"
 
 split:
-  train: 0.7
-  val: 0.15
-  test: 0.15
+  train: 0.75
+  val: 0.125
+  test: 0.125
   time_based: true   # keep chronological order
 
 teachers:
   # Any subset can be used as a teacher ensemble (see experiments.grid)
   common:
-    hidden: 64
+    hidden: 128
     dropout: 0.1
   models:
     dlinear:
@@ -39,71 +39,71 @@ teachers:
     patchtst:
       enabled: true
       patch_len: 8
-      d_model: 64
-      nhead: 4
-      num_layers: 2
-      ff: 128
+      d_model: 128
+      nhead: 8
+      num_layers: 3
+      ff: 256
     nbeats:
       enabled: true
-      stacks: 2
-      blocks_per_stack: 2
-      hidden: 128
+      stacks: 3
+      blocks_per_stack: 3
+      hidden: 256
 
 students:
   common:
-    hidden: 128
-    dropout: 0.15
+    hidden: 256
+    dropout: 0.2
   models:
     mlp:
       enabled: true
-      layers: [256, 128, 64]
+      layers: [512, 256, 128]
     gru:
       enabled: true
-      num_layers: 3
+      num_layers: 4
     kan:
       enabled: true
-      grid_size: 24
+      grid_size: 32
 
 distill:
   enabled: true
   uncertainty_weighted: true
-  uncertainty_alpha: 1.5
+  uncertainty_alpha: 2.0
   mode: "offline"     # offline only in this repo
   ensemble:
     weighting: "val_mae_softmax"  # uniform|val_mae_softmax
-    temperature: 0.5
+    temperature: 0.3
   losses:
     hard:
       type: "mae"        # mae or mse
-      weight: 0.4
+      weight: 0.3
     kd_pred:
       enabled: true
       type: "mse"        # mse on predictions
-      weight: 0.5
+      weight: 0.6
     kd_feat:
       enabled: true
       type: "mse"
-      weight: 0.1
+      weight: 0.15
       projector: "mlp"   # mlp|linear
-      proj_dim: 128
+      proj_dim: 256
     kd_contrastive:
       enabled: false
       temperature: 0.2
       weight: 0.05
     kd_diff:
-      enabled: false
-      weight: 0.05
+      enabled: true
+      weight: 0.1
 
 train:
   device: "auto"         # auto|cpu|cuda
-  epochs: 50
-  batch_size: 32
-  lr: 5.0e-4
-  weight_decay: 5.0e-5
+  epochs: 100
+  batch_size: 16
+  lr: 2.0e-4
+  weight_decay: 1.0e-5
   clip_grad: 1.0
   early_stopping:
     enabled: true
-    patience: 10
+    patience: 15
     metric: "val_mae"
   num_workers: 0
 
