@@ -51,18 +51,18 @@ teachers:
 
 students:
   common:
-    hidden: 64
-    dropout: 0.1
+    hidden: 128
+    dropout: 0.15
   models:
     mlp:
       enabled: true
-      layers: [128, 64]
+      layers: [512, 256, 128]
     gru:
       enabled: true
-      num_layers: 2
+      num_layers: 3
     kan:
       enabled: true
-      grid_size: 16
+      grid_size: 24
 
 distill:
   enabled: true
@@ -75,11 +75,11 @@ distill:
   losses:
     hard:
       type: "mae"        # mae or mse
-      weight: 0.5
+      weight: 0.4
     kd_pred:
       enabled: true
       type: "mse"        # mse on predictions
-      weight: 0.5
+      weight: 0.6
     kd_feat:
       enabled: false
       type: "mse"
@@ -96,14 +96,14 @@ distill:
 
 train:
   device: "auto"         # auto|cpu|cuda
-  epochs: 30
+  epochs: 80
   batch_size: 64
   lr: 1.0e-3
   weight_decay: 1.0e-4
   clip_grad: 1.0
   early_stopping:
     enabled: true
-    patience: 7
+    patience: 12
     metric: "val_mae"
   num_workers: 0
 
