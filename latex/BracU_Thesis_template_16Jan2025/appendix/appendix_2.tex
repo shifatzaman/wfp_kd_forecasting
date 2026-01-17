@@ -1,0 +1,129 @@
+% ******************************* Thesis Appendix B ********************************
+
+\chapter*{Appendix B: Code Availability}
+
+The complete source code for this research is publicly available for reproducibility and further research.
+
+\section*{Repository Information}
+
+\textbf{Repository URL}: \url{https://github.com/[username]/wfp_kd_forecasting}
+
+\section*{Repository Structure}
+
+\begin{verbatim}
+wfp_kd_forecasting/
+|-- configs/
+|   |-- default.yaml          # Main configuration file
+|   |-- experiments/          # Experiment-specific configs
+|-- src/
+|   |-- data/
+|   |   |-- loader.py         # Data loading utilities
+|   |   |-- preprocessing.py  # Data preprocessing
+|   |-- models/
+|   |   |-- teachers/
+|   |   |   |-- dlinear.py    # DLinear model
+|   |   |   |-- patchtst.py   # PatchTST model
+|   |   |   |-- nbeats.py     # N-BEATS model
+|   |   |-- students/
+|   |   |   |-- mlp.py        # MLP student
+|   |   |   |-- gru.py        # GRU student
+|   |   |   |-- kan.py        # KAN student
+|   |-- training/
+|   |   |-- trainer.py        # Training loop
+|   |   |-- distillation.py   # KD loss functions
+|   |-- evaluation/
+|       |-- metrics.py        # Evaluation metrics
+|-- runs/                     # Experiment outputs
+|-- requirements.txt          # Python dependencies
+|-- run.py                    # Main entry point
+\end{verbatim}
+
+\section*{Installation}
+
+\begin{lstlisting}[language=bash]
+# Clone the repository
+git clone https://github.com/[username]/wfp_kd_forecasting.git
+cd wfp_kd_forecasting
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+\end{lstlisting}
+
+\section*{Running Experiments}
+
+\subsection*{Train with Default Configuration}
+\begin{lstlisting}[language=bash]
+python run.py --config configs/default.yaml
+\end{lstlisting}
+
+\subsection*{Run Specific Teacher-Student Combination}
+\begin{lstlisting}[language=bash]
+python run.py --config configs/default.yaml \
+    --teachers dlinear patchtst nbeats \
+    --student mlp
+\end{lstlisting}
+
+\subsection*{Run Full Experimental Grid}
+\begin{lstlisting}[language=bash]
+python run.py --config configs/default.yaml --grid
+\end{lstlisting}
+
+\section*{Dependencies}
+
+The following Python packages are required:
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Package} & \textbf{Version} \\
+        \midrule
+        Python & $\geq$ 3.10 \\
+        PyTorch & $\geq$ 2.1.0 \\
+        NumPy & $\geq$ 1.24.0 \\
+        Pandas & $\geq$ 2.0.0 \\
+        scikit-learn & $\geq$ 1.3.0 \\
+        PyYAML & $\geq$ 6.0 \\
+        tqdm & $\geq$ 4.65.0 \\
+        matplotlib & $\geq$ 3.7.0 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section*{Reproducing Main Results}
+
+To reproduce the main results reported in this thesis (MAE = 2.11 BDT/kg):
+
+\begin{lstlisting}[language=bash]
+# Ensure you're using the exact configuration
+python run.py --config configs/default.yaml \
+    --seed 1337 \
+    --teachers dlinear patchtst nbeats \
+    --student mlp
+
+# Results will be saved to runs/[timestamp]/
+# Check runs/[timestamp]/results.json for metrics
+\end{lstlisting}
+
+\section*{License}
+
+This code is released under the MIT License for academic and research purposes.
+
+\section*{Citation}
+
+If you use this code in your research, please cite:
+
+\begin{verbatim}
+@mastersthesis{author2026kd,
+  title={Multi-Teacher Knowledge Distillation for
+         Food Commodity Price Forecasting},
+  author={[Your Name]},
+  school={BRAC University},
+  year={2026},
+  type={M.Sc. Thesis}
+}
+\end{verbatim}

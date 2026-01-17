@@ -1,0 +1,92 @@
+% Chapter 2: Literature Review
+
+\section{Time-Series Forecasting Methods}
+\label{sec:ts_methods}
+
+Time-series forecasting has a rich history spanning statistical methods, machine learning approaches, and more recently, deep learning techniques. Understanding this landscape is essential for positioning our contribution within the broader context of forecasting research.
+
+\subsection{Statistical Methods}
+
+Classical statistical approaches remain foundational in time-series analysis. The Autoregressive Integrated Moving Average (ARIMA) model, introduced by Box and Jenkins \cite{box1970time}, combines autoregression, differencing, and moving average components to capture temporal dependencies. Seasonal variants (SARIMA) extend this framework to handle periodic patterns common in economic and commodity data.
+
+Exponential smoothing methods, including Simple Exponential Smoothing, Holt's linear trend method, and Holt-Winters seasonal method, provide interpretable forecasts by assigning exponentially decreasing weights to past observations. These methods excel when data exhibits clear trend and seasonal components.
+
+While statistical methods offer interpretability and theoretical guarantees, they typically assume linear relationships and may struggle with complex non-linear patterns in modern datasets.
+
+\subsection{Machine Learning Approaches}
+
+Machine learning methods introduced greater flexibility in capturing non-linear relationships. Support Vector Regression (SVR) applies the kernel trick to map input features into high-dimensional spaces where linear regression becomes effective. Random Forests and Gradient Boosting machines provide ensemble-based approaches that combine multiple weak learners.
+
+These methods require careful feature engineering to extract relevant temporal features (lags, rolling statistics, calendar features) from raw time-series data, which can limit their ability to automatically discover complex patterns.
+
+\section{Deep Learning for Time-Series}
+\label{sec:dl_ts}
+
+Deep learning has revolutionized time-series forecasting by enabling automatic feature extraction and capturing complex temporal dependencies without explicit feature engineering.
+
+\subsection{Recurrent Neural Networks}
+
+Recurrent Neural Networks (RNNs) process sequences by maintaining hidden states that capture information from previous time steps. Long Short-Term Memory (LSTM) networks \cite{hochreiter1997long} address the vanishing gradient problem through gating mechanisms, enabling learning of long-range dependencies. Gated Recurrent Units (GRUs) \cite{cho2014learning} offer a simplified alternative with competitive performance and reduced computational requirements.
+
+Encoder-decoder architectures with attention mechanisms further improve sequence-to-sequence forecasting by allowing models to focus on relevant historical time steps when generating predictions.
+
+\subsection{Transformer-Based Models}
+
+The Transformer architecture \cite{vaswani2017attention}, originally developed for natural language processing, has been adapted for time-series forecasting. Models like Informer \cite{zhou2021informer} introduce sparse attention mechanisms to handle long sequences efficiently. PatchTST \cite{nie2023time} segments time-series into patches and applies Transformer encoders, achieving state-of-the-art results on multiple benchmarks.
+
+\subsection{Specialized Time-Series Architectures}
+
+N-BEATS \cite{oreshkin2020nbeats} introduces a deep neural architecture specifically designed for time-series forecasting. It employs a stack of fully-connected residual blocks that generate both backcast (reconstruction of input) and forecast (prediction) outputs, enabling interpretable decomposition of predictions.
+
+DLinear \cite{zeng2023transformers} challenges the complexity of Transformer-based approaches by demonstrating that simple linear models with seasonal-trend decomposition can achieve competitive or superior performance on many forecasting benchmarks.
+
+\section{Knowledge Distillation}
+\label{sec:kd}
+
+Knowledge distillation, introduced by Hinton et al. \cite{hinton2015distilling}, refers to the process of transferring knowledge from a large, complex ``teacher'' model to a smaller, efficient ``student'' model. The key insight is that soft probability distributions produced by teachers contain ``dark knowledge'' about inter-class relationships that hard labels lack.
+
+\subsection{Distillation Techniques}
+
+\textbf{Response-Based Distillation} transfers knowledge through the final output layer, training the student to mimic the teacher's predictions. For classification, this involves matching softened probability distributions; for regression, it involves minimizing the distance between predicted values.
+
+\textbf{Feature-Based Distillation} \cite{romero2015fitnets} aligns intermediate representations between teacher and student networks. This requires projection layers when teacher and student have different hidden dimensions.
+
+\textbf{Relation-Based Distillation} preserves structural relationships between data points, such as similarity matrices or attention patterns, encouraging the student to maintain relational knowledge learned by the teacher.
+
+\subsection{Multi-Teacher Distillation}
+
+Extending distillation to multiple teachers can leverage diverse expertise from different model architectures \cite{you2017learning}. Approaches include averaging teacher outputs, learning teacher-specific weights, and using attention mechanisms to dynamically weight teacher contributions based on input characteristics.
+
+\subsection{Distillation for Time-Series}
+
+While knowledge distillation has been extensively studied for image classification and natural language processing, its application to time-series forecasting remains limited. Recent work has explored distillation for anomaly detection in time-series and for compressing Transformer-based forecasting models, but comprehensive multi-teacher frameworks for regression-based forecasting are scarce.
+
+\section{Food Price Forecasting}
+\label{sec:food_price}
+
+Food price forecasting has attracted significant research attention due to its implications for food security and policy planning.
+
+\subsection{Traditional Approaches}
+
+Early work applied ARIMA and its variants to agricultural commodity prices, often incorporating exogenous variables such as weather data, exchange rates, and production statistics. Cointegration analysis has been used to model long-run relationships between related commodity prices.
+
+\subsection{Deep Learning for Food Prices}
+
+LSTM networks have been applied to various agricultural commodities, demonstrating ability to capture complex price dynamics. However, limited data availability and high volatility in food prices continue to pose challenges for deep learning approaches, which typically require substantial training data.
+
+\section{Research Gap}
+\label{sec:gap}
+
+Despite advances in both time-series forecasting and knowledge distillation, several gaps remain:
+
+\begin{enumerate}
+    \item \textbf{Limited Multi-Teacher Distillation for Regression}: Most multi-teacher distillation research focuses on classification tasks, with limited work on adapting these techniques for regression-based time-series forecasting.
+
+    \item \textbf{Lack of Uncertainty-Weighted Transfer}: Existing approaches do not adequately account for teacher uncertainty when transferring knowledge, potentially propagating unreliable predictions.
+
+    \item \textbf{Insufficient Feature-Level Transfer for Time-Series}: Feature distillation techniques have not been systematically studied for time-series architectures with their unique hidden representations.
+
+    \item \textbf{Limited Application to Food Security}: Despite the importance of accurate price forecasting for food security, knowledge distillation has not been applied to create lightweight models suitable for resource-constrained deployment.
+\end{enumerate}
+
+This thesis addresses these gaps by proposing a comprehensive multi-teacher knowledge distillation framework specifically designed for food commodity price forecasting.

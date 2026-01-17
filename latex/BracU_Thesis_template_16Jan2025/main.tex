@@ -1,0 +1,161 @@
+%*******************************************************************
+%   Project Name: Multi-Teacher Knowledge Distillation for Food Price Forecasting
+%   Based on: BracU Thesis Template by Ayesha Abed Library, Brac University
+%
+%   PLEASE KEEP ALL FILES IN THEIR DESIGNATED FOLDERS
+%*******************************************************************
+
+\documentclass[Times,12pt,oneside,openany,print,index]{report}
+\usepackage[a4paper,width=150mm,top=25mm,bottom=25mm]{geometry}
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{csquotes}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\pagestyle{plain}
+
+\usepackage{graphicx}
+\graphicspath{{images/}}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{longtable}
+
+% TikZ for diagrams
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows, positioning, fit, calc, backgrounds}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% Algorithm packages
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% Code listings
+\usepackage{listings}
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    tabsize=2,
+    captionpos=b
+}
+
+\usepackage[nottoc]{tocbibind}
+\usepackage[normalem]{ulem}
+
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=magenta,
+    urlcolor=blue,
+    citecolor=black,
+}
+\urlstyle{same}
+
+\setlength{\parindent}{0em}
+
+\usepackage{nomencl}
+\renewcommand{\nompreamble}{The next list describes several symbols \& abbreviations that will be later used within the body of the document}
+\makenomenclature
+
+\usepackage[backend=biber,style=ieee,sorting=ynt]{biblatex}
+\addbibresource{bibliography/references.bib}
+
+\let\cleardoublepage=\clearpage
+
+\begin{document}
+
+\thispagestyle{empty}
+
+\input{core/titlepage}
+\cleardoublepage
+
+\pagenumbering{roman}
+
+%*******************************************************************
+% Front Matter
+%*******************************************************************
+\phantomsection
+\addcontentsline{toc}{chapter}{Declaration}
+\input{core/declaration}
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Approval}
+\input{core/approval}
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Ethics Statement}
+\input{core/ethics_statement}
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Abstract}
+\input{core/abstract}
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Dedication}
+\input{core/dedication}
+
+\phantomsection
+\addcontentsline{toc}{chapter}{Acknowledgment}
+\input{core/acknowledgement}
+
+\renewcommand{\contentsname}{Table of Contents}
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{Table of Contents}
+\tableofcontents
+
+\listoffigures
+\listoftables
+
+\printnomenclature
+\addcontentsline{toc}{chapter}{Nomenclature}
+\cleardoublepage
+
+\pagenumbering{arabic}
+
+%*******************************************************************
+% Main Chapters
+%*******************************************************************
+\chapter{Introduction}
+\input{chapters/chapter_1.tex}
+
+\chapter{Literature Review}
+\input{chapters/chapter_2.tex}
+
+\chapter{Methodology}
+\input{chapters/chapter_3.tex}
+
+\chapter{Results and Analysis}
+\input{chapters/chapter_4.tex}
+
+\chapter{Conclusion}
+\input{chapters/chapter_5.tex}
+
+%*******************************************************************
+% Bibliography
+%*******************************************************************
+\phantomsection
+\printbibliography
+\addcontentsline{toc}{chapter}{Bibliography}
+
+%*******************************************************************
+% Appendices
+%*******************************************************************
+\newpage
+\phantomsection
+\addcontentsline{toc}{chapter}{Appendix A: Configuration File}
+\input{appendix/appendix_1}
+
+\newpage
+\phantomsection
+\addcontentsline{toc}{chapter}{Appendix B: Code Availability}
+\input{appendix/appendix_2}
+
+\end{document}

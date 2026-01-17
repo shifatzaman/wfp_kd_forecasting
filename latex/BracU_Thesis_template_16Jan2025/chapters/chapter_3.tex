@@ -1,0 +1,379 @@
+% Chapter 3: Methodology
+
+\section{System Overview}
+\label{sec:system_overview}
+
+The proposed framework consists of four main components:
+
+\begin{enumerate}
+    \item \textbf{Data Preprocessing Pipeline}: Handles data loading, unit normalization, temporal aggregation, and train/validation/test splitting.
+
+    \item \textbf{Teacher Model Ensemble}: Comprises three diverse architectures (DLinear, PatchTST, N-BEATS) trained independently on the target forecasting task.
+
+    \item \textbf{Knowledge Distillation Module}: Combines teacher outputs using uncertainty-weighted ensemble and transfers knowledge through multi-component loss.
+
+    \item \textbf{Student Model Training}: Trains lightweight models (MLP, GRU, KAN) using combined ground truth supervision and teacher distillation signals.
+\end{enumerate}
+
+Figure~\ref{fig:system_architecture} illustrates the complete system architecture.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+        scale=0.85,
+        transform shape,
+        node distance=0.8cm,
+        box/.style={rectangle, draw, text width=5cm, text centered, minimum height=0.8cm, font=\small},
+        smallbox/.style={rectangle, draw, text width=2cm, text centered, minimum height=0.6cm, font=\footnotesize},
+        arrow/.style={thick,->,>=stealth}
+    ]
+        % Data preprocessing
+        \node[box, fill=gray!20] (data) {WFP Bangladesh Price Data};
+        \node[box, fill=gray!10, below=0.5cm of data] (preprocess) {
+            \textbf{Data Preprocessing}\\
+            Unit normalization $\bullet$ MinMax scaling\\
+            Monthly aggregation $\bullet$ Window creation
+        };
+
+        % Teachers
+        \node[smallbox, fill=green!20, below left=1cm and 1cm of preprocess] (t1) {DLinear};
+        \node[smallbox, fill=green!20, below=1cm of preprocess] (t2) {PatchTST};
+        \node[smallbox, fill=green!20, below right=1cm and 1cm of preprocess] (t3) {N-BEATS};
+
+        % Ensemble
+        \node[box, fill=purple!15, below=2.5cm of preprocess] (ensemble) {
+            \textbf{Uncertainty-Weighted Ensemble}\\
+            $\mu = \sum w_i \cdot pred_i$, $\sigma^2 = \text{Var}(pred)$
+        };
+
+        % KD Loss
+        \node[box, fill=red!15, below=0.6cm of ensemble] (loss) {
+            \textbf{Multi-Component Distillation Loss}\\
+            $\mathcal{L} = 0.3\mathcal{L}_{hard} + 0.6\mathcal{L}_{kd} + 0.15\mathcal{L}_{feat} + 0.1\mathcal{L}_{diff}$
+        };
+
+        % Students
+        \node[smallbox, fill=orange!20, below left=1cm and 1cm of loss] (s1) {MLP};
+        \node[smallbox, fill=orange!20, below=1cm of loss] (s2) {GRU};
+        \node[smallbox, fill=orange!20, below right=1cm and 1cm of loss] (s3) {KAN};
+
+        % Arrows
+        \draw[arrow] (data) -- (preprocess);
+        \draw[arrow] (preprocess) -- (t1);
+        \draw[arrow] (preprocess) -- (t2);
+        \draw[arrow] (preprocess) -- (t3);
+        \draw[arrow] (t1) -- (ensemble);
+        \draw[arrow] (t2) -- (ensemble);
+        \draw[arrow] (t3) -- (ensemble);
+        \draw[arrow] (ensemble) -- (loss);
+        \draw[arrow] (loss) -- (s1);
+        \draw[arrow] (loss) -- (s2);
+        \draw[arrow] (loss) -- (s3);
+    \end{tikzpicture}
+    \caption{System architecture of the multi-teacher knowledge distillation framework.}
+    \label{fig:system_architecture}
+\end{figure}
+
+\section{Dataset Description}
+\label{sec:dataset}
+
+\subsection{Data Source}
+
+This research utilizes the World Food Programme (WFP) Food Prices dataset for Bangladesh, which provides monthly retail prices for various food commodities across multiple markets. The dataset is publicly available and regularly updated, making it suitable for reproducible research.
+
+\subsection{Market and Commodity Selection}
+
+We focus on the Dhaka market, Bangladesh's capital and largest urban center, which provides the most comprehensive price coverage. To ensure sufficient data for training, we select the seven commodities with the most observations, as shown in Table~\ref{tab:dataset_stats}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Dataset statistics for selected commodities}
+    \label{tab:dataset_stats}
+    \begin{tabular}{llcc}
+        \toprule
+        \textbf{Commodity} & \textbf{Category} & \textbf{Observations} & \textbf{Price Range (BDT/kg)} \\
+        \midrule
+        Rice (coarse) & Cereals & 96 & 35--55 \\
+        Rice (fine) & Cereals & 94 & 45--70 \\
+        Wheat flour & Cereals & 92 & 30--50 \\
+        Lentils & Pulses & 88 & 80--130 \\
+        Oil (soybean) & Oils & 90 & 95--160 \\
+        Sugar & Sweeteners & 85 & 50--85 \\
+        Onions & Vegetables & 78 & 25--120 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Data Preprocessing}
+\label{sec:preprocessing}
+
+\subsection{Unit Normalization}
+
+The original dataset contains prices in various units (per kg, per 100kg, per 100g, etc.). We normalize all prices to BDT/kg using appropriate conversion factors.
+
+\subsection{Train/Validation/Test Split}
+
+We employ time-based splitting to preserve temporal ordering and prevent data leakage:
+\begin{itemize}
+    \item \textbf{Training set}: First 75\% of observations
+    \item \textbf{Validation set}: Next 12.5\% (for hyperparameter tuning)
+    \item \textbf{Test set}: Final 12.5\% (for unbiased evaluation)
+\end{itemize}
+
+\subsection{Feature Scaling}
+
+We employ MinMax normalization to scale prices to $[0, 1]$:
+
+\begin{equation}
+    x_{scaled} = \frac{x - x_{min}}{x_{max} - x_{min}}
+\end{equation}
+
+The scaler is fit only on training data and applied consistently to validation and test sets.
+
+\subsection{Window Creation}
+
+Time-series data is transformed into supervised learning format using sliding windows:
+\begin{itemize}
+    \item \textbf{Input length}: 24 months (2 years of historical data)
+    \item \textbf{Forecast horizon}: 1 month ahead
+    \item \textbf{Stride}: 1 (maximum overlap for limited data)
+\end{itemize}
+
+\section{Teacher Model Architectures}
+\label{sec:teachers}
+
+We employ three diverse teacher architectures, each capturing different aspects of temporal patterns.
+
+\subsection{DLinear (Decomposition + Linear)}
+
+DLinear \cite{zeng2023transformers} provides a simple yet effective baseline through time-series decomposition. The model separates input into trend and seasonal components using a moving average kernel, then applies separate linear projections. Figure~\ref{fig:dlinear_arch} illustrates the architecture.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+        scale=0.8,
+        transform shape,
+        node distance=0.6cm,
+        box/.style={rectangle, draw, minimum width=2cm, minimum height=0.6cm, font=\small},
+        arrow/.style={thick,->,>=stealth}
+    ]
+        \node[box] (input) {Input $(B, L)$};
+        \node[box, below=0.8cm of input] (decomp) {Decomposition};
+        \node[box, below left=0.8cm and 0.5cm of decomp] (trend) {Trend};
+        \node[box, below right=0.8cm and 0.5cm of decomp] (seasonal) {Seasonal};
+        \node[box, below=0.6cm of trend] (lin1) {Linear$(L \rightarrow H)$};
+        \node[box, below=0.6cm of seasonal] (lin2) {Linear$(L \rightarrow H)$};
+        \node[box, below=1.5cm of decomp] (sum) {Sum};
+        \node[box, below=0.6cm of sum] (output) {Output $(B, H)$};
+
+        \draw[arrow] (input) -- (decomp);
+        \draw[arrow] (decomp) -- (trend);
+        \draw[arrow] (decomp) -- (seasonal);
+        \draw[arrow] (trend) -- (lin1);
+        \draw[arrow] (seasonal) -- (lin2);
+        \draw[arrow] (lin1) -- (sum);
+        \draw[arrow] (lin2) -- (sum);
+        \draw[arrow] (sum) -- (output);
+    \end{tikzpicture}
+    \caption{DLinear teacher model architecture with decomposition.}
+    \label{fig:dlinear_arch}
+\end{figure}
+
+\subsection{PatchTST (Patch Time-Series Transformer)}
+
+PatchTST \cite{nie2023time} applies the Transformer architecture to time-series by segmenting the input into patches and processing them with self-attention.
+
+\subsection{N-BEATS (Neural Basis Expansion Analysis)}
+
+N-BEATS \cite{oreshkin2020nbeats} uses stacked residual blocks that produce both backcast (reconstruction) and forecast outputs. The architecture consists of multiple stacks, each containing multiple blocks.
+
+Table~\ref{tab:teacher_params} summarizes the hyperparameters for each teacher model.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Teacher model hyperparameters}
+    \label{tab:teacher_params}
+    \begin{tabular}{lcc}
+        \toprule
+        \textbf{Model} & \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        \multirow{3}{*}{DLinear} & Hidden dimension & 128 \\
+        & Decomposition kernel & 25 \\
+        & Dropout & 0.1 \\
+        \midrule
+        \multirow{5}{*}{PatchTST} & d\_model & 128 \\
+        & n\_heads & 8 \\
+        & n\_layers & 3 \\
+        & d\_ff & 256 \\
+        & patch\_length & 8 \\
+        \midrule
+        \multirow{4}{*}{N-BEATS} & n\_stacks & 3 \\
+        & n\_blocks\_per\_stack & 3 \\
+        & Hidden dimension & 256 \\
+        & Dropout & 0.1 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Student Model Architectures}
+\label{sec:students}
+
+Student models are designed to be lightweight while maintaining sufficient capacity to absorb teacher knowledge.
+
+\subsection{MLP Student}
+
+A simple feedforward network with three hidden layers:
+
+\begin{equation}
+    h_1 = \text{ReLU}(W_1 x + b_1), \quad h_2 = \text{ReLU}(W_2 h_1 + b_2), \quad h_3 = \text{ReLU}(W_3 h_2 + b_3)
+\end{equation}
+
+with dimensions [512, 256, 128] and dropout rate of 0.2.
+
+\subsection{GRU Student}
+
+A recurrent architecture using Gated Recurrent Units with 4 layers and 256 hidden dimensions.
+
+\subsection{KAN Student}
+
+An experimental architecture using learnable spline-based basis functions (Kolmogorov-Arnold Network approximation).
+
+\section{Knowledge Distillation Framework}
+\label{sec:kd_framework}
+
+\subsection{Multi-Teacher Ensemble}
+
+Teachers are combined using softmax weighting based on validation MAE:
+
+\begin{equation}
+    w_i = \frac{\exp(-MAE_i / \tau)}{\sum_j \exp(-MAE_j / \tau)}
+\end{equation}
+
+where $\tau = 0.3$ is the temperature parameter controlling weight sharpness.
+
+The ensemble prediction and variance are:
+\begin{equation}
+    \mu = \sum_i w_i \cdot pred_i, \quad \sigma^2 = \text{Var}(\{pred_1, pred_2, \ldots, pred_n\})
+\end{equation}
+
+\subsection{Multi-Component Distillation Loss}
+
+The total loss comprises four components:
+
+\begin{enumerate}
+    \item \textbf{Hard Loss} (Ground Truth Supervision):
+    \begin{equation}
+        \mathcal{L}_{hard} = \frac{1}{N}\sum_i |y_{student,i} - y_{true,i}|
+    \end{equation}
+
+    \item \textbf{Prediction Distillation Loss} with uncertainty weighting:
+    \begin{equation}
+        \mathcal{L}_{kd} = \frac{1}{N}\sum_i \exp(-\alpha \cdot \sigma_i^2) \cdot (y_{student,i} - \mu_i)^2
+    \end{equation}
+    where $\alpha = 2.0$ controls sensitivity to teacher uncertainty.
+
+    \item \textbf{Feature Distillation Loss}:
+    \begin{equation}
+        \mathcal{L}_{feat} = \text{MSE}(\text{Project}(f_{student}), f_{teacher})
+    \end{equation}
+
+    \item \textbf{Difference Learning Loss}:
+    \begin{equation}
+        \mathcal{L}_{diff} = \text{MSE}(\Delta y_{student}, \Delta y_{teacher})
+    \end{equation}
+    where $\Delta y = y_{pred} - x_{last}$ captures the predicted price change.
+\end{enumerate}
+
+The total loss is:
+\begin{equation}
+    \mathcal{L}_{total} = 0.3 \cdot \mathcal{L}_{hard} + 0.6 \cdot \mathcal{L}_{kd} + 0.15 \cdot \mathcal{L}_{feat} + 0.1 \cdot \mathcal{L}_{diff}
+\end{equation}
+
+Algorithm~\ref{alg:distillation} presents the complete training procedure.
+
+\begin{algorithm}[htbp]
+\caption{Multi-Teacher Knowledge Distillation Training}
+\label{alg:distillation}
+\begin{algorithmic}[1]
+\Require Training data $\mathcal{D}$, teacher models $\{T_1, T_2, T_3\}$, student model $S$
+\Require Hyperparameters: $\alpha$, $\tau$, loss weights $\lambda_{hard}, \lambda_{kd}, \lambda_{feat}, \lambda_{diff}$
+\Ensure Trained student model $S$
+
+\State \textbf{Phase 1: Train Teachers}
+\For{each teacher $T_i$}
+    \State Train $T_i$ on $\mathcal{D}$ with MAE loss until convergence
+    \State Compute validation MAE: $MAE_i \gets \text{Validate}(T_i)$
+\EndFor
+
+\State \textbf{Phase 2: Compute Ensemble Weights}
+\State $w_i \gets \frac{\exp(-MAE_i / \tau)}{\sum_j \exp(-MAE_j / \tau)}$ for all $i$
+
+\State \textbf{Phase 3: Train Student with Distillation}
+\For{epoch $= 1$ to max\_epochs}
+    \For{each batch $(x, y_{true}) \in \mathcal{D}_{train}$}
+        \State Compute teacher predictions: $pred_i \gets T_i(x)$ for all $i$
+        \State Compute ensemble: $\mu \gets \sum_i w_i \cdot pred_i$
+        \State Compute variance: $\sigma^2 \gets \text{Var}(\{pred_i\})$
+        \State Compute student prediction: $y_{student} \gets S(x)$
+        \State Compute $\mathcal{L}_{hard} \gets \text{MAE}(y_{student}, y_{true})$
+        \State Compute $\mathcal{L}_{kd} \gets \sum_i \exp(-\alpha \sigma_i^2)(y_{student,i} - \mu_i)^2$
+        \State Compute $\mathcal{L}_{feat} \gets \text{MSE}(\text{Proj}(f_S), f_T)$
+        \State Compute $\mathcal{L}_{diff} \gets \text{MSE}(\Delta y_S, \Delta y_T)$
+        \State $\mathcal{L}_{total} \gets \lambda_{hard}\mathcal{L}_{hard} + \lambda_{kd}\mathcal{L}_{kd} + \lambda_{feat}\mathcal{L}_{feat} + \lambda_{diff}\mathcal{L}_{diff}$
+        \State Update $S$ via backpropagation on $\mathcal{L}_{total}$
+    \EndFor
+    \If{early stopping criterion met}
+        \State \textbf{break}
+    \EndIf
+\EndFor
+\State \Return $S$
+\end{algorithmic}
+\end{algorithm}
+
+\section{Training Procedure}
+\label{sec:training}
+
+\subsection{Teacher Training}
+
+Each teacher is trained independently using standard supervised learning with the configuration shown in Table~\ref{tab:train_config}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Training configuration}
+    \label{tab:train_config}
+    \begin{tabular}{lcc}
+        \toprule
+        \textbf{Parameter} & \textbf{Teacher} & \textbf{Student} \\
+        \midrule
+        Optimizer & AdamW & AdamW \\
+        Learning rate & $1 \times 10^{-3}$ & $2 \times 10^{-4}$ \\
+        Weight decay & $1 \times 10^{-5}$ & $1 \times 10^{-5}$ \\
+        Batch size & 16 & 16 \\
+        Max epochs & 100 & 100 \\
+        Early stopping patience & 15 & 15 \\
+        Gradient clipping & -- & 1.0 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Evaluation Metrics}
+\label{sec:metrics}
+
+We employ multiple metrics to comprehensively evaluate forecasting performance:
+
+\begin{enumerate}
+    \item \textbf{Mean Absolute Error (MAE)}:
+    \begin{equation}
+        MAE = \frac{1}{N}\sum_{i=1}^{N} |y_i - \hat{y}_i|
+    \end{equation}
+
+    \item \textbf{Root Mean Square Error (RMSE)}:
+    \begin{equation}
+        RMSE = \sqrt{\frac{1}{N}\sum_{i=1}^{N} (y_i - \hat{y}_i)^2}
+    \end{equation}
+
+    \item \textbf{Mean Absolute Percentage Error (MAPE)}:
+    \begin{equation}
+        MAPE = \frac{100}{N}\sum_{i=1}^{N} \frac{|y_i - \hat{y}_i|}{|y_i|}
+    \end{equation}
+\end{enumerate}

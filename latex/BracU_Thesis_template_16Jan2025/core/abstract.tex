@@ -1,0 +1,14 @@
+\section*{Abstract}
+
+Accurate food price forecasting is critical for food security planning, particularly in developing nations like Bangladesh where price volatility can significantly impact vulnerable populations. However, existing deep learning approaches for time-series forecasting often require substantial computational resources, limiting their deployment in resource-constrained environments. This thesis presents a novel multi-teacher knowledge distillation framework for food commodity price forecasting that transfers knowledge from an ensemble of strong teacher models to lightweight student networks.
+
+The proposed framework employs three distinct teacher architectures---DLinear, PatchTST, and N-BEATS---trained on World Food Programme (WFP) Bangladesh commodity price data. Knowledge is transferred to compact student models (MLP, GRU, KAN) through a multi-component distillation loss comprising prediction-level matching, feature-level alignment, and price-difference learning. An uncertainty-weighted mechanism focuses training on confident teacher predictions, while a softmax-based ensemble strategy dynamically weights teacher contributions based on validation performance.
+
+Experimental evaluation on seven food commodities from the Dhaka market demonstrates that the proposed approach achieves a Mean Absolute Error (MAE) of 2.11 BDT/kg, representing a \textbf{30\% improvement} over the supervised learning baseline of 3.02 BDT/kg. The lightweight MLP student model, with only three hidden layers, successfully captures teacher knowledge while maintaining computational efficiency suitable for edge deployment. Comprehensive ablation studies reveal that MinMax scaling, feature distillation, and uncertainty weighting contribute most significantly to performance gains.
+
+This research contributes a reproducible, configuration-driven framework for knowledge distillation in time-series forecasting, demonstrating that lightweight models can achieve competitive accuracy through effective knowledge transfer from ensemble teachers. The findings have practical implications for deploying accurate forecasting systems in resource-limited settings for food security applications.
+
+\vspace{1cm}
+\textbf{Keywords:} Knowledge Distillation; Time-Series Forecasting; Food Price Prediction; Multi-Teacher Learning; Deep Learning; Transfer Learning; WFP Data
+
+\pagebreak

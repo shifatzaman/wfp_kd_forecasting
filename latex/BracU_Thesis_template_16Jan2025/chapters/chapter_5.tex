@@ -1,0 +1,108 @@
+% Chapter 5: Conclusion
+
+\section{Summary of Findings}
+\label{sec:summary}
+
+This thesis presented a multi-teacher knowledge distillation framework for food commodity price forecasting in Bangladesh. The key findings are:
+
+\begin{enumerate}
+    \item \textbf{Effective Knowledge Transfer}: The proposed framework successfully transfers knowledge from an ensemble of three diverse teacher models (DLinear, PatchTST, N-BEATS) to lightweight student networks, achieving a \textbf{30\% improvement} in MAE over supervised baselines (from 3.02 to 2.11 BDT/kg).
+
+    \item \textbf{Multi-Component Loss Design}: The combination of prediction distillation, feature distillation, and difference learning provides complementary benefits, with prediction distillation being the most critical component (removing it increases MAE by 0.57 BDT/kg).
+
+    \item \textbf{Uncertainty-Weighted Ensemble}: Dynamically weighting teacher contributions based on validation performance and prediction confidence improves knowledge transfer quality, contributing 0.17 BDT/kg reduction in MAE.
+
+    \item \textbf{Practical Viability}: The MLP student achieves MAE of 2.11 BDT/kg (approximately 3--4\% error on typical prices) while maintaining computational efficiency suitable for resource-constrained deployment.
+
+    \item \textbf{Robust Across Commodities}: The approach provides consistent improvements across all seven commodities evaluated, with improvements ranging from 29.8\% to 30.2\%.
+
+    \item \textbf{Critical Configuration Factors}: Ablation studies revealed that MinMax scaling (vs. standard normalization), 24-month input windows, and feature distillation are among the most important factors for achieving optimal performance.
+\end{enumerate}
+
+\section{Contributions Revisited}
+\label{sec:contributions_revisited}
+
+This thesis made the following contributions to the field:
+
+\begin{enumerate}
+    \item \textbf{Novel Framework}: A comprehensive multi-teacher knowledge distillation framework specifically designed for time-series regression, addressing the gap in existing literature that focuses primarily on classification tasks.
+
+    \item \textbf{Multi-Component Loss}: A four-component distillation loss (hard, prediction, feature, difference) that effectively captures different aspects of teacher knowledge for time-series forecasting.
+
+    \item \textbf{Uncertainty Weighting}: An uncertainty-weighted mechanism that focuses student learning on confident teacher predictions, improving robustness.
+
+    \item \textbf{Empirical Validation}: Extensive experiments demonstrating practical applicability on real-world WFP data with detailed ablation studies.
+
+    \item \textbf{Reproducible Codebase}: A configuration-driven implementation enabling reproducible research and practical deployment.
+\end{enumerate}
+
+\section{Limitations}
+\label{sec:limitations}
+
+This research has several limitations that should be acknowledged:
+
+\begin{enumerate}
+    \item \textbf{Geographic Scope}: Validation is limited to Dhaka market data; performance on other regions and countries remains unverified. Different markets may exhibit different price dynamics that require model adaptation.
+
+    \item \textbf{Data Volume}: With monthly frequency and limited history (approximately 80--100 observations per commodity), deep learning approaches operate in a data-scarce regime. More frequent data (weekly or daily) could potentially improve performance.
+
+    \item \textbf{External Factors}: The current model uses only historical prices as input. Incorporating external variables such as weather data, production statistics, exchange rates, and policy events could improve accuracy.
+
+    \item \textbf{Single-Step Forecasting}: The framework focuses on one-month-ahead prediction. Practical applications may require multi-horizon forecasts (e.g., 3, 6, or 12 months ahead).
+
+    \item \textbf{Reproducibility Variance}: While the configuration achieving MAE=2.11 is consistently reproducible, some earlier experimental results showed lower MAE values that could not be reliably reproduced, indicating potential sensitivity to initialization or specific data conditions.
+\end{enumerate}
+
+\section{Future Work}
+\label{sec:future}
+
+Several promising directions for future research emerge from this work:
+
+\subsection{Immediate Extensions}
+
+\begin{enumerate}
+    \item \textbf{Multi-Horizon Forecasting}: Extending the framework to predict multiple future time steps simultaneously (e.g., 1, 3, 6 months ahead) using iterative or direct multi-output approaches.
+
+    \item \textbf{External Feature Integration}: Incorporating exogenous variables such as:
+    \begin{itemize}
+        \item Weather and climate data (rainfall, temperature)
+        \item Agricultural production statistics
+        \item Macroeconomic indicators (inflation, exchange rates)
+        \item Policy events (import/export regulations)
+    \end{itemize}
+
+    \item \textbf{Higher Frequency Data}: Utilizing weekly or daily price data where available to increase training samples and capture short-term dynamics.
+\end{enumerate}
+
+\subsection{Methodological Advances}
+
+\begin{enumerate}
+    \item \textbf{Cross-Market Transfer}: Investigating whether models trained on data-rich markets can transfer to data-sparse markets through domain adaptation techniques.
+
+    \item \textbf{Online Learning}: Developing mechanisms for continuous model updates as new price data becomes available, maintaining accuracy over time.
+
+    \item \textbf{Explainability}: Adding interpretability methods (attention visualization, feature importance) to understand which historical patterns drive predictions, supporting trust in deployment contexts.
+
+    \item \textbf{Probabilistic Forecasting}: Extending from point predictions to uncertainty quantification, providing confidence intervals that are valuable for risk-aware decision making.
+\end{enumerate}
+
+\subsection{Practical Deployment}
+
+\begin{enumerate}
+    \item \textbf{Edge Deployment}: Optimizing the student model for deployment on low-power devices commonly available in developing regions.
+
+    \item \textbf{User Interface}: Developing accessible interfaces for non-technical users in humanitarian organizations.
+
+    \item \textbf{Multi-Country Extension}: Adapting the framework to other WFP-monitored countries for broader food security applications.
+\end{enumerate}
+
+\section{Concluding Remarks}
+\label{sec:concluding}
+
+This thesis demonstrates that knowledge distillation provides an effective mechanism for creating accurate yet lightweight forecasting models for food commodity prices. By transferring knowledge from ensemble teachers to compact students, we enable deployment of sophisticated forecasting capabilities in resource-constrained environments where they are most needed for food security applications.
+
+The 30\% improvement in MAE achieved through the proposed multi-teacher distillation framework represents a significant advancement over supervised learning baselines. The systematic analysis of contributing factors---including the importance of MinMax scaling, feature distillation, and uncertainty weighting---provides actionable insights for practitioners working on similar time-series forecasting problems.
+
+As food security challenges continue to affect vulnerable populations worldwide, accurate price forecasting becomes increasingly important for proactive intervention and resource allocation. The lightweight models produced by our framework can be deployed in settings where computational resources are limited, democratizing access to advanced forecasting capabilities.
+
+We hope this work inspires further research at the intersection of knowledge distillation and time-series forecasting, ultimately contributing to improved food security outcomes in developing nations.

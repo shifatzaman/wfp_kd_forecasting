@@ -1,0 +1,132 @@
+% ******************************* Thesis Appendix A ****************************
+\chapter*{Appendix A: Configuration File}
+
+The following YAML configuration file represents the best-performing setup used in our experiments:
+
+\begin{lstlisting}[language=Python, caption={Best performing configuration (configs/default.yaml)}]
+seed: 1337
+
+data:
+  url: "https://raw.githubusercontent.com/shifatzaman/datasets/..."
+  market: "Dhaka"
+  n_commodities: 7
+  freq: "ME"
+  agg: "median"
+
+task:
+  input_len: 24
+  horizon: 1
+  scale: "minmax"
+  target: "price"
+
+teachers:
+  common:
+    hidden: 128
+    dropout: 0.1
+  models:
+    dlinear:
+      kernel_size: 25
+    patchtst:
+      d_model: 128
+      nhead: 8
+      num_layers: 3
+      d_ff: 256
+      patch_len: 8
+    nbeats:
+      n_stacks: 3
+      n_blocks: 3
+      hidden: 256
+
+students:
+  mlp:
+    hidden_dims: [512, 256, 128]
+    dropout: 0.2
+  gru:
+    hidden: 256
+    n_layers: 4
+    dropout: 0.2
+  kan:
+    hidden: 256
+    grid_size: 32
+
+distill:
+  enabled: true
+  uncertainty_weighted: true
+  uncertainty_alpha: 2.0
+  teacher_temp: 0.3
+  losses:
+    hard:
+      type: mae
+      weight: 0.3
+    kd_pred:
+      type: mse
+      weight: 0.6
+      enabled: true
+    kd_feat:
+      enabled: true
+      weight: 0.15
+      proj_dim: 256
+    kd_diff:
+      enabled: true
+      weight: 0.1
+
+train:
+  epochs: 100
+  batch_size: 16
+  lr: 2.0e-4
+  weight_decay: 1.0e-5
+  grad_clip: 1.0
+  early_stopping:
+    enabled: true
+    patience: 15
+    min_delta: 0.001
+  scheduler:
+    type: reduce_on_plateau
+    factor: 0.5
+    patience: 5
+
+experiments:
+  grid:
+    enabled: true
+    teacher_sets:
+      - [dlinear]
+      - [patchtst]
+      - [nbeats]
+      - [dlinear, patchtst]
+      - [dlinear, nbeats]
+      - [patchtst, nbeats]
+      - [dlinear, patchtst, nbeats]
+    students: [mlp, gru, kan]
+\end{lstlisting}
+
+\section*{Key Configuration Parameters}
+
+\subsection*{Data Settings}
+\begin{itemize}
+    \item \textbf{n\_commodities}: Number of top commodities to use (7)
+    \item \textbf{freq}: Resampling frequency (ME = Month End)
+    \item \textbf{agg}: Aggregation method for resampling (median)
+\end{itemize}
+
+\subsection*{Task Settings}
+\begin{itemize}
+    \item \textbf{input\_len}: Historical window length in months (24)
+    \item \textbf{horizon}: Forecast horizon (1 month ahead)
+    \item \textbf{scale}: Normalization method (minmax critical for performance)
+\end{itemize}
+
+\subsection*{Distillation Settings}
+\begin{itemize}
+    \item \textbf{uncertainty\_weighted}: Enable uncertainty-based weighting (true)
+    \item \textbf{uncertainty\_alpha}: Sensitivity to teacher variance (2.0)
+    \item \textbf{teacher\_temp}: Temperature for softmax ensemble weights (0.3)
+    \item \textbf{Loss weights}: hard=0.3, kd\_pred=0.6, kd\_feat=0.15, kd\_diff=0.1
+\end{itemize}
+
+\subsection*{Training Settings}
+\begin{itemize}
+    \item \textbf{epochs}: Maximum training epochs (100)
+    \item \textbf{batch\_size}: Training batch size (16)
+    \item \textbf{lr}: Learning rate (2e-4 for students)
+    \item \textbf{patience}: Early stopping patience (15 epochs)
+\end{itemize}

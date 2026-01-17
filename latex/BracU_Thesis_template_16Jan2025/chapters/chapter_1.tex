@@ -1,0 +1,134 @@
+% Chapter 1: Introduction
+
+\section{Background and Motivation}
+\label{sec:background}
+
+Food security remains one of the most pressing challenges facing developing nations, with price volatility of essential commodities directly impacting the nutrition and welfare of vulnerable populations. Bangladesh, with its large population and dependence on agricultural commodities, is particularly susceptible to food price fluctuations. Accurate forecasting of food commodity prices can enable proactive policy interventions, support market stabilization efforts, and help humanitarian organizations like the World Food Programme (WFP) optimize resource allocation.
+
+Traditional statistical methods for time-series forecasting, such as ARIMA and exponential smoothing, have been widely applied to commodity price prediction \cite{box1970time}. However, these methods often struggle to capture complex non-linear patterns and long-range dependencies inherent in food price dynamics. The advent of deep learning has introduced powerful architectures capable of learning intricate temporal relationships, including recurrent neural networks (RNNs), Long Short-Term Memory networks (LSTMs) \cite{hochreiter1997long}, Transformer-based models \cite{vaswani2017attention}, and specialized time-series architectures like N-BEATS \cite{oreshkin2020nbeats} and DLinear \cite{zeng2023transformers}.
+
+Despite their predictive capabilities, state-of-the-art deep learning models present significant deployment challenges in resource-constrained environments. Many regions that would benefit most from accurate price forecasting lack the computational infrastructure to deploy complex models. This creates a critical gap between the availability of sophisticated forecasting techniques and their practical applicability in the contexts where they are most needed.
+
+Knowledge distillation \cite{hinton2015distilling} offers a promising solution to this challenge. By transferring knowledge from large, accurate ``teacher'' models to smaller, efficient ``student'' models, it becomes possible to achieve competitive accuracy with significantly reduced computational requirements. While knowledge distillation has been successfully applied in domains such as computer vision and natural language processing, its application to time-series forecasting, particularly in multi-teacher ensemble settings, remains underexplored.
+
+Figure~\ref{fig:framework_overview} provides a high-level overview of the proposed framework.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+        node distance=1.5cm,
+        block/.style={rectangle, draw, fill=blue!10, text width=3cm, text centered, rounded corners, minimum height=1cm},
+        teacher/.style={rectangle, draw, fill=green!20, text width=2cm, text centered, rounded corners, minimum height=0.8cm},
+        student/.style={rectangle, draw, fill=orange!20, text width=2cm, text centered, rounded corners, minimum height=0.8cm},
+        arrow/.style={thick,->,>=stealth}
+    ]
+        % Data
+        \node[block, fill=gray!20] (data) {WFP Price Data};
+
+        % Teachers
+        \node[teacher] (t1) [below left=1.5cm and 0.5cm of data] {DLinear};
+        \node[teacher] (t2) [below=1.5cm of data] {PatchTST};
+        \node[teacher] (t3) [below right=1.5cm and 0.5cm of data] {N-BEATS};
+
+        % Ensemble
+        \node[block, fill=purple!20] (ensemble) [below=2.5cm of data] {Uncertainty-Weighted Ensemble};
+
+        % KD Loss
+        \node[block, fill=red!15] (kd) [below=1cm of ensemble] {Multi-Component Distillation Loss};
+
+        % Students
+        \node[student] (s1) [below left=1.5cm and 0.5cm of kd] {MLP};
+        \node[student] (s2) [below=1.5cm of kd] {GRU};
+        \node[student] (s3) [below right=1.5cm and 0.5cm of kd] {KAN};
+
+        % Arrows
+        \draw[arrow] (data) -- (t1);
+        \draw[arrow] (data) -- (t2);
+        \draw[arrow] (data) -- (t3);
+
+        \draw[arrow] (t1) -- (ensemble);
+        \draw[arrow] (t2) -- (ensemble);
+        \draw[arrow] (t3) -- (ensemble);
+
+        \draw[arrow] (ensemble) -- (kd);
+
+        \draw[arrow] (kd) -- (s1);
+        \draw[arrow] (kd) -- (s2);
+        \draw[arrow] (kd) -- (s3);
+    \end{tikzpicture}
+    \caption{High-level overview of the proposed multi-teacher knowledge distillation framework for food price forecasting.}
+    \label{fig:framework_overview}
+\end{figure}
+
+\section{Problem Statement}
+\label{sec:problem}
+
+The core problem addressed in this thesis is the development of lightweight yet accurate forecasting models for food commodity prices in Bangladesh. Specifically, we address the following challenges:
+
+\begin{enumerate}
+    \item \textbf{Limited Data Availability}: Monthly commodity price data from WFP provides relatively few observations (typically 50--100 data points per commodity), making it challenging to train deep learning models effectively.
+
+    \item \textbf{Computational Constraints}: Target deployment environments in developing regions may lack the computational resources required for complex deep learning models, necessitating lightweight architectures.
+
+    \item \textbf{Model Ensemble Complexity}: While ensemble methods combining multiple forecasting models can improve accuracy, they multiply computational requirements and complicate deployment.
+
+    \item \textbf{Knowledge Transfer for Time-Series}: Existing knowledge distillation techniques are primarily designed for classification tasks and require adaptation for regression-based time-series forecasting.
+\end{enumerate}
+
+\section{Research Objectives}
+\label{sec:objectives}
+
+This thesis aims to achieve the following objectives:
+
+\begin{enumerate}
+    \item \textbf{Design a Multi-Teacher Knowledge Distillation Framework}: Develop a systematic approach for transferring knowledge from an ensemble of diverse teacher models to lightweight student networks for time-series forecasting.
+
+    \item \textbf{Implement Diverse Teacher Architectures}: Create and train three distinct teacher models (DLinear, PatchTST, N-BEATS) capturing different aspects of temporal patterns in commodity price data.
+
+    \item \textbf{Develop Multi-Component Distillation Loss}: Design a comprehensive loss function incorporating prediction-level matching, feature-level alignment, and price-difference learning to effectively transfer teacher knowledge.
+
+    \item \textbf{Evaluate on Real-World Data}: Conduct thorough experiments on WFP Bangladesh commodity price data to validate the effectiveness of the proposed approach.
+
+    \item \textbf{Analyze Contributing Factors}: Perform ablation studies to understand which components of the framework contribute most significantly to performance improvements.
+\end{enumerate}
+
+\section{Contributions}
+\label{sec:contributions}
+
+This thesis makes the following contributions:
+
+\begin{enumerate}
+    \item \textbf{Novel Multi-Teacher Distillation Framework for Time-Series}: We propose a framework that combines predictions from multiple diverse teacher architectures using uncertainty-weighted ensemble strategies, enabling effective knowledge transfer to compact student models.
+
+    \item \textbf{Multi-Component Distillation Loss}: We introduce a loss function comprising four components---hard loss, prediction distillation, feature distillation, and difference learning---specifically designed for time-series forecasting tasks.
+
+    \item \textbf{Uncertainty-Weighted Knowledge Transfer}: We develop a mechanism that weights teacher contributions based on prediction confidence, focusing student learning on reliable teacher outputs.
+
+    \item \textbf{Comprehensive Empirical Evaluation}: We provide extensive experiments demonstrating a 30\% improvement in MAE over supervised baselines, along with detailed ablation studies identifying critical success factors.
+
+    \item \textbf{Reproducible Implementation}: We release a configuration-driven codebase enabling reproducible experiments and facilitating future research in this direction.
+\end{enumerate}
+
+\section{Thesis Outline}
+\label{sec:outline}
+
+The remainder of this thesis is organized as follows:
+
+\textbf{Chapter 2: Literature Review} surveys related work in time-series forecasting, deep learning architectures for temporal data, knowledge distillation techniques, and food price prediction methods.
+
+\textbf{Chapter 3: Methodology} describes the proposed framework in detail, including dataset preparation, teacher and student architectures, the knowledge distillation mechanism, and training procedures.
+
+\textbf{Chapter 4: Results and Analysis} presents experimental results, comparing different teacher-student combinations, analyzing ablation studies, and discussing the findings.
+
+\textbf{Chapter 5: Conclusion} summarizes the research contributions, acknowledges limitations, and outlines directions for future work.
+
+% Nomenclature entries
+\nomenclature{$MAE$}{Mean Absolute Error}
+\nomenclature{$RMSE$}{Root Mean Square Error}
+\nomenclature{$MAPE$}{Mean Absolute Percentage Error}
+\nomenclature{$KD$}{Knowledge Distillation}
+\nomenclature{$MLP$}{Multi-Layer Perceptron}
+\nomenclature{$GRU$}{Gated Recurrent Unit}
+\nomenclature{$KAN$}{Kolmogorov-Arnold Network}
+\nomenclature{$WFP$}{World Food Programme}
+\nomenclature{$BDT$}{Bangladeshi Taka}
