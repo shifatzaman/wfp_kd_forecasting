@@ -4,8 +4,8 @@ data:
   url: "https://raw.githubusercontent.com/shifatzaman/datasets/refs/heads/main/wfp_food_prices_bgd_updated.csv"
   country: "Bangladesh"
   currency: "BDT"
-  market: "Dhaka"
-  n_commodities: 7
+  market: "Dhaka Division"
+  n_commodities: 2
   date_col: "date"
   commodity_col: "commodity"
   market_col: "market"

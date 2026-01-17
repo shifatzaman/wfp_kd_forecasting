@@ -5,42 +5,53 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
-_UNIT_RE = re.compile(r"(?P<num>\d+(?:\.\d+)?)\s*(?P<unit>[a-zA-Z]+)")
+_UNIT_RE = re.compile(
+    r"(?P<num>\d+(?:\.\d+)?)?\s*(?P<unit>[a-zA-Z]+)?"
+)
 
 def _parse_unit_multiplier(unit: str) -> float:
-    '''
-    Parse common WFP unit strings and return multiplier to convert to **kg**.
+    """
+    Return numeric quantity in unit string.
 
     Examples:
-      "kg" -> 1
-      "1 kg" -> 1
-      "100kg" -> 100
-      "50 KG" -> 50
-      "g" -> 0.001
-      "100 g" -> 0.1
-    If unrecognized, returns 1 (assume already per-kg).
-    '''
-    if not isinstance(unit, str) or unit.strip() == "":
+      "kg"        -> 1
+      "1 kg"      -> 1
+      "100kg"     -> 100
+      "5 l"       -> 5
+      "dozen"     -> 12
+      "piece"     -> 1
+      "packet"   -> 1
+    """
+    if not isinstance(unit, str):
         return 1.0
-    u = unit.strip().lower().replace("kgs", "kg").replace("kilogram", "kg")
 
-    # Exact units
-    if u in {"kg", "1kg", "1 kg"}:
+    u = unit.strip().lower()
+    if not u:
         return 1.0
-    if u in {"g", "gram", "grams"}:
-        return 0.001
 
-    m = _UNIT_RE.search(u.replace("/", " "))
+    # Normalize text
+    u = (
+        u.replace("kgs", "kg")
+         .replace("kilograms", "kg")
+         .replace("kilogram", "kg")
+         .replace("litres", "l")
+         .replace("liters", "l")
+         .replace("litre", "l")
+         .replace("grams", "g")
+         .replace("gram", "g")
+    )
+
+    # Special count units
+    if u == "dozen":
+        return 12.0
+
+    # Extract leading number
+    m = _UNIT_RE.match(u)
     if not m:
         return 1.0
-    num = float(m.group("num"))
-    unit_str = m.group("unit").lower()
-    if unit_str in {"kg"}:
-        return num
-    if unit_str in {"g"}:
-        return num * 0.001
-    # unknown, fallback
-    return 1.0
+
+    return float(m.group("num")) if m.group("num") else 1.0
+
 
 @dataclass
 class PreparedData:
@@ -77,10 +88,10 @@ def load_and_prepare(
 
     # Normalize to BDT/kg
     mult = df[unit_col].apply(_parse_unit_multiplier) if unit_col in df.columns else 1.0
-    df["_price_per_kg"] = df[price_col].astype(float) / mult.astype(float)
+    df["_price_per_unit"] = df[price_col].astype(float) / mult.astype(float)
 
     # Pick top commodities by coverage
-    counts = df.groupby(commodity_col)["_price_per_kg"].count().sort_values(ascending=False)
+    counts = df.groupby(commodity_col)["_price_per_unit"].count().sort_values(ascending=False)
     top = counts.head(n_commodities).index.tolist()
     df = df[df[commodity_col].isin(top)]
 
@@ -89,7 +100,7 @@ def load_and_prepare(
     meta_rows = []
     for comm, g in df.groupby(commodity_col):
         g = g.sort_values(date_col)
-        s = g.set_index(date_col)["_price_per_kg"].astype(float)
+        s = g.set_index(date_col)["_price_per_unit"].astype(float)
         if agg == "mean":
             s = s.resample(freq).mean()
         else:
